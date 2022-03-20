@@ -1,0 +1,13 @@
+[package]
+name = "media_server"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+authors = ["Cendyne <cendyne@cendyne.dev>"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+rocket = "0.5.0-rc.1"
+diesel = {version = "1.4.8", features = ["sqlite", "numeric", "r2d2"]}
+dotenv = "0.15.0"
