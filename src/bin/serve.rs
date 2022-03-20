@@ -2,7 +2,7 @@
 extern crate rocket;
 extern crate diesel;
 extern crate media_server;
-// use self::models::*;
+use self::models::*;
 // use diesel::prelude::*;
 use ct_codecs::{Base64UrlSafeNoPadding, Encoder};
 use media_server::*;
@@ -10,8 +10,10 @@ use rocket::form::Form;
 use rocket::fs::FileServer;
 use rocket::fs::TempFile;
 use rocket::http::{ContentType, MediaType};
+use rocket::State;
 use std::io::Read;
 use std::path::Path;
+use std::time::SystemTime;
 
 #[get("/")]
 fn index() -> &'static str {
@@ -32,8 +34,14 @@ fn favicon() -> (ContentType, &'static [u8]) {
 pub const JXL: ContentType = ContentType(MediaType::const_new("image", "jxl", &[]));
 pub const MP3: ContentType = ContentType(MediaType::const_new("audio", "mpeg", &[]));
 
-#[put("/object?<path>", data = "<file>")]
-async fn upload_object(path: &str, mut file: Form<TempFile<'_>>) -> Result<String, String> {
+#[put("/object?<path>&<width>&<height>", data = "<file>")]
+async fn upload_object(
+    path: &str,
+    mut file: Form<TempFile<'_>>,
+    width: Option<i32>,
+    height: Option<i32>,
+    pool: &State<Pool>,
+) -> Result<String, String> {
     println!("Input {} for {:?}", path, file);
     let mut destination = upload_path()?;
     let content_type = file.content_type().unwrap_or(&ContentType::Binary).clone();
@@ -120,13 +128,47 @@ async fn upload_object(path: &str, mut file: Form<TempFile<'_>>) -> Result<Strin
     println!("Total bytes {} vs len {}", total_bytes, file.len());
     let hash = hasher.finalize();
     let hash_bytes = hash.as_bytes();
-    let content_name = Base64UrlSafeNoPadding::encode_to_string(&hash_bytes[0..8])
-        .map_err(|e| format!("{}", e))?;
-    destination.push(format!("{}.{}", content_name, ext));
-    file.persist_to(&destination)
-        .await
-        .map_err(|err| format!("{}", err))?;
-    // TODO save to db
+    let content_hash =
+        Base64UrlSafeNoPadding::encode_to_string(&hash_bytes).map_err(|e| format!("{}", e))?;
+    let content_name = format!("{}.{}", &content_hash[..10], ext);
+    destination.push(content_name.clone());
+    let conn = pool.get().map_err(|e| format!("{}", e))?;
+    let existing_object = find_object_by_hash(&conn, &content_hash)?;
+    match existing_object {
+        Some(obj) => {
+            // TODO headers
+            update_object(&conn, obj.id, width, height, None)?;
+        }
+        None => {
+            // only need to save it a first time
+            file.persist_to(&destination)
+                .await
+                .map_err(|err| format!("{}", err))?;
+            let now = SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .map_err(|err| format!("{}", err))?
+                .as_secs();
+            let new_object = NewObject {
+                content_hash,
+                content_type: format!(
+                    "{}/{}",
+                    content_type.media_type().top(),
+                    content_type.media_type().sub()
+                ),
+                content_encoding: "identity".to_string(),
+                length: file.len() as i64,
+                object_path: content_name.clone(),
+                file_path: content_name, // same for now
+                created: now as i64,
+                modified: now as i64,
+                width,
+                height,
+                content_headers: None,
+            };
+            create_object(&conn, &new_object)?;
+        }
+    }
+
     Ok(format!("{:?}", destination))
 }
 

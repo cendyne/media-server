@@ -1,0 +1,1 @@
+drop index `object_content_hash`;
