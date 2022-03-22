@@ -1,6 +1,6 @@
 use super::schema::object;
 
-#[derive(Queryable)]
+#[derive(Queryable, Debug)]
 pub struct Object {
     pub id: i32,
     pub content_hash: String,

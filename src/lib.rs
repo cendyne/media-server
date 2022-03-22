@@ -87,3 +87,16 @@ pub fn find_object_by_hash(
         .map_err(|err| format!("{}", err))?;
     Ok(result)
 }
+
+pub fn find_object_by_object_path(
+    conn: &SqliteConnection,
+    path: &str,
+) -> Result<Option<models::Object>, String> {
+    use schema::object::dsl::*;
+    let result = object
+        .filter(object_path.eq(path))
+        .first(conn)
+        .optional()
+        .map_err(|err| format!("{}", err))?;
+    Ok(result)
+}
