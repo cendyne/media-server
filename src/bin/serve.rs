@@ -10,13 +10,13 @@ use rocket::form::Form;
 use rocket::fs::FileServer;
 use rocket::fs::TempFile;
 use rocket::fs::NamedFile;
-use rocket::http::{Status, ContentType, MediaType, uri::Segments};
+use rocket::http::{Status, ContentType, MediaType};
 use rocket::State;
-use rocket::request::{FromRequest, FromSegments, Request, Outcome};
-use rocket::outcome::{try_outcome, IntoOutcome};
+use rocket::request::{FromRequest, Request, Outcome};
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::SystemTime;
+use rocket::serde::{Deserialize, Serialize, json::Json};
 
 
 #[get("/")]
@@ -38,14 +38,36 @@ fn favicon() -> (ContentType, &'static [u8]) {
 pub const JXL: ContentType = ContentType(MediaType::const_new("image", "jxl", &[]));
 pub const MP3: ContentType = ContentType(MediaType::const_new("audio", "mpeg", &[]));
 
-#[put("/object?<path>&<width>&<height>", data = "<file>")]
+#[derive(Deserialize, Debug)]
+struct UpsertVirtualObjectRequestObjectReference {
+    path: String,
+}
+
+#[derive(Deserialize, Debug)]
+struct UpsertVirtualObjectRequest {
+    objects: Vec<UpsertVirtualObjectRequestObjectReference>,
+}
+
+#[derive(Serialize, Debug)]
+struct UpsertObjectResponse {
+    path: String,
+    unique_path: String,
+    content_type: String,
+    content_encoding: String,
+    file_size: i64,
+    width: Option<i32>,
+    height: Option<i32>,
+}
+
+#[put("/object/<input_path..>?<width>&<height>", data = "<file>")]
 async fn upload_object(
-    path: &str,
+    input_path: PathBuf,
     mut file: Form<TempFile<'_>>,
     width: Option<i32>,
     height: Option<i32>,
     pool: &State<Pool>,
-) -> Result<String, String> {
+) -> Result<Json<UpsertObjectResponse>, String> {
+    let path = input_path.to_str().ok_or_else(|| "Could not parse path for some reason".to_string())?;
     println!("Input {} for {:?}", path, file);
     let mut destination = upload_path()?;
     let content_type = file.content_type().unwrap_or(&ContentType::Binary).clone();
@@ -153,7 +175,7 @@ async fn upload_object(
                 .map_err(|err| format!("{}", err))?
                 .as_secs();
             let new_object = NewObject {
-                content_hash,
+                content_hash: content_hash.clone(),
                 content_type: format!(
                     "{}/{}",
                     content_type.media_type().top(),
@@ -162,7 +184,7 @@ async fn upload_object(
                 content_encoding: "identity".to_string(),
                 length: file.len() as i64,
                 object_path: path.to_string(),
-                file_path: content_name, // same for now
+                file_path: content_name,
                 created: now as i64,
                 modified: now as i64,
                 width,
@@ -173,7 +195,27 @@ async fn upload_object(
         }
     }
 
-    Ok(format!("{:?}", destination))
+    let upserted_object = find_object_by_hash(&conn, &content_hash)?.ok_or_else(|| "Could not find object after upserting".to_string())?;
+
+    Ok(Json(UpsertObjectResponse {
+        path: upserted_object.object_path,
+        unique_path: upserted_object.file_path,
+        content_type: upserted_object.content_type,
+        content_encoding: upserted_object.content_encoding,
+        file_size: upserted_object.length,
+        width: upserted_object.width,
+        height: upserted_object.height,
+    }))
+}
+
+
+#[put("/virtual-object/<input_path..>", data = "<body>")]
+async fn upsert_virtual_object(input_path: PathBuf, body: Json<UpsertVirtualObjectRequest>, pool: &State<Pool>) -> Result<String, String> {
+    let path = input_path.to_str().ok_or_else(|| "Could not parse path for some reason".to_string())?;
+    let conn = pool.get().map_err(|e| format!("{}", e))?;
+    let virtual_object = find_or_create_virtual_object_by_object_path(&conn, &path)?;
+    println!("TODO {} {:?}", path, virtual_object);
+    Ok("TODO".to_string())
 }
 
 #[derive(Debug)]
@@ -198,11 +240,19 @@ impl<'r> FromRequest<'r> for ExistingFile {
                 return Outcome::Failure((Status::new(500), "Could not get a database connection".to_string()));
             }
         };
-        let object = find_object_by_object_path(&conn, &requested_path);
-        match object {
+        let width = req.query_value::<i32>("w").transpose().unwrap_or(None);
+        let height = req.query_value::<i32>("h").transpose().unwrap_or(None);
+        let extension = Path::new(&requested_path).extension().and_then(|os| os.to_str());
+        // Search for virtual object first
+        match find_object_by_parameters(&conn, &requested_path, width, height, extension) {
             Ok(Some(object)) => Outcome::Success(ExistingFile(object)),
-            Ok(None) => Outcome::Forward(()),
-            Err(_) => Outcome::Forward(())
+            // Try to find a normal object
+            Ok(None) => match find_object_by_object_path(&conn, &requested_path) {
+                Ok(Some(object)) => Outcome::Success(ExistingFile(object)),
+                Ok(None) => Outcome::Forward(()),
+                Err(_) => Outcome::Forward(()),
+            }
+            Err(_) => Outcome::Forward(()),
         }
     }
 }
@@ -231,7 +281,7 @@ fn rocket() -> _ {
     rocket::build()
         .manage(connection_pool)
         // make sure find_object is LAST, ALWAYS
-        .mount("/", routes![index, favicon, robots_txt, upload_object, find_object])
+        .mount("/", routes![index, favicon, robots_txt, upload_object, upsert_virtual_object, find_object])
         .mount("/f", FileServer::from(static_path.as_path()))
         .attach(rocket::shield::Shield::new())
 }

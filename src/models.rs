@@ -1,4 +1,4 @@
-use super::schema::object;
+use super::schema::{object, virtual_object};
 
 #[derive(Queryable, Debug)]
 pub struct Object {
@@ -42,13 +42,19 @@ pub struct UpdateObject {
     pub content_headers: Option<String>,
 }
 
-#[derive(Queryable)]
+#[derive(Queryable, Debug)]
 pub struct VirtualObject {
     pub id: i32,
     pub object_path: String,
 }
 
-#[derive(Queryable)]
+#[derive(Insertable)]
+#[table_name = "virtual_object"]
+pub struct NewVirtualObject {
+    pub object_path: String,
+}
+
+#[derive(Queryable, Debug)]
 pub struct VirtualObjectRelation {
     pub virtual_object_id: i32,
     pub object_id: i32,
