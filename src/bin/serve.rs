@@ -176,42 +176,15 @@ async fn upload_object(
     Ok(format!("{:?}", destination))
 }
 
-// This exists to consume a path segment the route
-// While a guard actually does the work to get the rest
-struct DummyPathSegments;
-
-impl FromSegments<'_> for DummyPathSegments {
-    type Error = std::convert::Infallible;
-    fn from_segments(_segments: Segments<'_, rocket::http::uri::fmt::Path>) -> Result<Self, Self::Error> {
-        Ok(DummyPathSegments)
-    }
-}
-
 #[derive(Debug)]
-struct RequestedFilePath {
-    path: String
-}
-
-impl FromSegments<'_> for RequestedFilePath {
-    type Error = std::convert::Infallible;
-    fn from_segments(segments: Segments<'_, rocket::http::uri::fmt::Path>) -> Result<Self, Self::Error> {
-        Ok(RequestedFilePath {
-            path: segments.collect::<Vec<_>>().join("/")
-        })
-    }
-}
-#[derive(Debug)]
-struct ExistingFile {
-    path: String,
-    object: Object,
-}
+struct ExistingFile(Object);
 
 #[rocket::async_trait]
 impl<'r> FromRequest<'r> for ExistingFile {
     type Error = String;
     async fn from_request(req: &'r Request<'_>) -> rocket::request::Outcome<Self, Self::Error> {
-        // TODO better handle error (currently infallible?)
-        let requested_path = req.segments::<RequestedFilePath>(1..).unwrap();
+        let requested_path = req.routed_segments(0..).collect::<Vec<_>>().join("/");
+
         println!("Tried to find Existing File for requested path {:?}", requested_path);// <------
         // let pool = &State<Pool>;
         let pool = match req.guard::<&State<Pool>>().await {
@@ -219,34 +192,34 @@ impl<'r> FromRequest<'r> for ExistingFile {
             Outcome::Failure((status, _)) => return Outcome::Failure((status, "Could not get database pool".to_string())),
             Outcome::Forward(_) => return Outcome::Forward(())
         };
-        let opt_conn = pool.get().map_err(|e| format!("{}", e));
-
-        let conn = match opt_conn {
+        let conn = match pool.get().map_err(|e| format!("{}", e)) {
             Ok(conn) => conn,
             Err(_) => {
                 return Outcome::Failure((Status::new(500), "Could not get a database connection".to_string()));
             }
         };
-        let object = find_object_by_object_path(&conn, &requested_path.path);
+        let object = find_object_by_object_path(&conn, &requested_path);
         match object {
-            Ok(Some(object)) => Outcome::Success(ExistingFile {
-                path: requested_path.path,
-                object
-            }),
+            Ok(Some(object)) => Outcome::Success(ExistingFile(object)),
             Ok(None) => Outcome::Forward(()),
             Err(_) => Outcome::Forward(())
         }
     }
 }
 
+#[get("/robots.txt")]
+async fn robots_txt() -> &'static str {
+    "User-agent: *\nDisallow: /"
+}
 
-#[get("/f/<_requested_path..>")]
+#[get("/<_..>")]
 async fn find_object(
-    _requested_path: DummyPathSegments,
     existing_file: ExistingFile,
 ) -> Result<NamedFile, String> {
     println!("Found existing file! {:?}", existing_file);
-    let path = upload_path()?.join(existing_file.object.file_path);
+    let path = upload_path()?.join(existing_file.0.file_path);
+    // TODO cache headers, will require I use a different type which implements Responder
+    // see source of NamedFile
     NamedFile::open(path).await.map_err(|err| format!("{}", err))
 }
 
@@ -257,7 +230,8 @@ fn rocket() -> _ {
     let static_path = upload_path().unwrap();
     rocket::build()
         .manage(connection_pool)
-        .mount("/", routes![index, favicon, upload_object, find_object])
+        // make sure find_object is LAST, ALWAYS
+        .mount("/", routes![index, favicon, robots_txt, upload_object, find_object])
         .mount("/f", FileServer::from(static_path.as_path()))
         .attach(rocket::shield::Shield::new())
 }
