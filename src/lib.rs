@@ -7,14 +7,17 @@ pub mod schema;
 
 use diesel::prelude::*;
 use diesel::r2d2::{self, ConnectionManager};
-use diesel::sqlite::SqliteConnection;
 use diesel::sql_types;
+use diesel::sqlite::SqliteConnection;
 use dotenv::dotenv;
+use std::collections::HashSet;
 use std::fs::create_dir_all;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
-use models::{NewObject, UpdateObject, NewVirtualObject, VirtualObject, Object};
+use models::{
+    NewObject, NewVirtualObject, Object, ReplaceVirtualObjectRelation, UpdateObject, VirtualObject,
+};
 
 pub type Pool = r2d2::Pool<ConnectionManager<SqliteConnection>>;
 
@@ -98,6 +101,7 @@ pub fn find_object_by_object_path(
     use schema::object::dsl::*;
     let result = object
         .filter(object_path.eq(path))
+        .or_filter(file_path.eq(path))
         .first(conn)
         .optional()
         .map_err(|err| format!("{}", err))?;
@@ -117,7 +121,10 @@ pub fn find_virtual_object_by_object_path(
     Ok(result)
 }
 
-pub fn find_or_create_virtual_object_by_object_path(conn: &SqliteConnection, path: &str) -> Result<VirtualObject, String> {
+pub fn find_or_create_virtual_object_by_object_path(
+    conn: &SqliteConnection,
+    path: &str,
+) -> Result<VirtualObject, String> {
     match find_virtual_object_by_object_path(conn, path)? {
         Some(virtual_object) => Ok(virtual_object),
         None => {
@@ -127,7 +134,7 @@ pub fn find_or_create_virtual_object_by_object_path(conn: &SqliteConnection, pat
             // feature returning_clauses_for_sqlite_3_35 has not been released yet
             let result = diesel::insert_into(virtual_object::table)
                 .values(NewVirtualObject {
-                    object_path: path.to_string()
+                    object_path: path.to_string(),
                 })
                 .execute(conn)
                 .map_err(|err| format!("{}", err))?;
@@ -149,21 +156,115 @@ pub fn find_or_create_virtual_object_by_object_path(conn: &SqliteConnection, pat
     }
 }
 
-// TODO find all relationships to virtual Object
-// TODO Remove relationships
-// TODO Add relationships
+pub fn find_related_objects_to_virtual_object(
+    conn: &SqliteConnection,
+    virtual_object: &VirtualObject,
+) -> Result<Vec<Object>, String> {
+    use schema::virtual_object_relation::dsl::*;
+    let result = virtual_object_relation
+        .inner_join(schema::virtual_object::table)
+        .inner_join(schema::object::table)
+        .filter(virtual_object_id.eq(&virtual_object.id))
+        .select(schema::object::all_columns)
+        .load(conn)
+        .map_err(|err| format!("{}", err))?;
+    Ok(result)
+}
+
+/* TODO use around insertion
+conn.transaction::<_, diesel::result::Error, _>(|| {
+    delete(opts, &conn);
+    Ok(())
+})
+.unwrap()
+*/
+
+pub fn remove_virtual_object_relations(
+    conn: &SqliteConnection,
+    objects: &[&Object],
+    virtual_object: &VirtualObject,
+) -> Result<(), String> {
+    use schema::virtual_object_relation::dsl::*;
+    if objects.len() == 0 {
+        return Ok(());
+    }
+    let ids = objects.iter().map(|o| o.id);
+    println!("Removing objects {:?}", ids);
+    let targets = virtual_object_relation
+        .filter(object_id.eq_any(ids))
+        .filter(virtual_object_id.eq(&virtual_object.id));
+    diesel::delete(targets)
+        .execute(conn)
+        .map_err(|err| format!("{}", err))?;
+    Ok(())
+}
+
+pub fn add_virtual_object_relations(
+    conn: &SqliteConnection,
+    objects: &[Object],
+    virtual_object_ref: &VirtualObject,
+) -> Result<(), String> {
+    if objects.len() == 0 {
+        return Ok(());
+    }
+    // Have to annotate it so that the DSL doesn't create some
+    // crazy recursion type checking exception
+    // Ibzan recommends explicit type annotation on collect() use
+    let relations: Vec<ReplaceVirtualObjectRelation> = objects
+        .iter()
+        .map(|o| ReplaceVirtualObjectRelation {
+            virtual_object_id: virtual_object_ref.id,
+            object_id: o.id,
+        })
+        .collect();
+    diesel::replace_into(schema::virtual_object_relation::table)
+        .values(relations)
+        .execute(conn)
+        .map_err(|err| format!("{}", err))?;
+    Ok(())
+}
+
+pub fn replace_virtual_object_relations(
+    conn: &SqliteConnection,
+    objects: &[Object],
+    virtual_object: &VirtualObject,
+) -> Result<(), String> {
+    // This method could be a lot more optimal,
+    // but due to how infrequent it is used, this remains to be optimized
+    let mut to_have = HashSet::new();
+    for object in objects {
+        to_have.insert(object.id);
+    }
+    let has = find_related_objects_to_virtual_object(conn, virtual_object)?;
+    let has_ids : HashSet<i32> = has.iter()
+        .map(|o| o.id)
+        .collect();
+    // println!("Has: {:?}", has);
+    let to_keep_ids: HashSet<i32> = has_ids.intersection(&to_have).map(|i| i.clone()).collect();
+    // println!("To Keep Ids: {:?}", to_keep_ids);
+    let to_remove: Vec<&Object> = has
+        .iter()
+        .filter(|o| !to_keep_ids.contains(&o.id))
+        .collect();
+    // println!("To Remove: {:?}", to_remove);
+    remove_virtual_object_relations(conn, &to_remove, virtual_object)?;
+    // Add does a replace into, no need to do another difference
+    add_virtual_object_relations(conn, objects, virtual_object)?;
+    Ok(())
+}
 
 pub fn find_object_by_parameters(
     conn: &SqliteConnection,
     path: &str,
     width: Option<i32>,
     height: Option<i32>,
-    extension: Option<&str>
+    extension: Option<&str>,
 ) -> Result<Option<Object>, String> {
     println!("Looking for virtual object by path {}", path);
     let virtual_object = match find_virtual_object_by_object_path(conn, path) {
         Ok(Some(virtual_object)) => virtual_object,
         Ok(None) => {
+            println!("Could not find virtual object");
             return Ok(None);
         }
         Err(_) => {
@@ -171,7 +272,37 @@ pub fn find_object_by_parameters(
         }
     };
     println!("Found virtual object {:?}", virtual_object);
+    let objects = find_related_objects_to_virtual_object(conn, &virtual_object)?;
+    println!("Found objects {:?}", objects);
+    if objects.is_empty() {
+        println!("Bailing out early, objects is empty");
+        return Ok(None);
+    }
+    // TODO switch to content type matching instead of ext
+    let same_extension : Vec<&Object> = match extension {
+        // This is kind of dumb
+        None => objects.iter().collect(),
+        Some(ext) => objects.iter().filter(|o| o.file_path.ends_with(ext)).collect()
+    };
+    // Bail out early
+    if same_extension.is_empty() {
+        println!("No matching extension");
+        return Ok(None);
+    }
     // TODO
-    // TODO implement virtual object lookup and subsequent object
-    Ok(None)
+    println!("Looking for closest {:?}, {:?}", width, height);
+    let closest = match (width, height) {
+        (Some(width), Some(height)) => same_extension,
+        (Some(width), None) => same_extension,
+        (None, Some(height)) => same_extension,
+        (None, None) => same_extension,
+    };
+    if closest.is_empty() {
+        println!("No matching extension");
+        return Ok(None);
+    }
+    // This also looks dumb
+    let closest_found : Option<Object> = closest.first().map(|o| o.clone().clone());
+    println!("Found closest {:?}", closest_found);
+    Ok(closest_found)
 }

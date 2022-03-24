@@ -1,6 +1,6 @@
-use super::schema::{object, virtual_object};
+use super::schema::{object, virtual_object, virtual_object_relation};
 
-#[derive(Queryable, Debug)]
+#[derive(Queryable, Debug, Clone)]
 pub struct Object {
     pub id: i32,
     pub content_hash: String,
@@ -54,3 +54,9 @@ pub struct NewVirtualObject {
     pub object_path: String,
 }
 
+#[derive(Insertable)]
+#[table_name = "virtual_object_relation"]
+pub struct ReplaceVirtualObjectRelation {
+    pub virtual_object_id: i32,
+    pub object_id: i32,
+}

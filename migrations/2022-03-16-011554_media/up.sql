@@ -21,6 +21,8 @@ create table `virtual_object` (
 create table `virtual_object_relation` (
     `virtual_object_id` integer not null,
     `object_id` integer not null,
-    primary key(`virtual_object_id`, `object_id`)
+    primary key(`virtual_object_id`, `object_id`),
+    foreign key (`virtual_object_id`) references `virtual_object`(`id`),
+    foreign key (`object_id`) references `object`(`id`)
 );
 create index `virtual_object_relation_object` on `virtual_object_relation` (`object_id`);

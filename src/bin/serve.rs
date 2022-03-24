@@ -8,16 +8,15 @@ use ct_codecs::{Base64UrlSafeNoPadding, Encoder};
 use media_server::*;
 use rocket::form::Form;
 use rocket::fs::FileServer;
-use rocket::fs::TempFile;
 use rocket::fs::NamedFile;
-use rocket::http::{Status, ContentType, MediaType};
+use rocket::fs::TempFile;
+use rocket::http::{ContentType, MediaType, Status};
+use rocket::request::{FromRequest, Outcome, Request};
+use rocket::serde::{json::Json, Deserialize, Serialize};
 use rocket::State;
-use rocket::request::{FromRequest, Request, Outcome};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
-use rocket::serde::{Deserialize, Serialize, json::Json};
-
 
 #[get("/")]
 fn index() -> &'static str {
@@ -67,7 +66,9 @@ async fn upload_object(
     height: Option<i32>,
     pool: &State<Pool>,
 ) -> Result<Json<UpsertObjectResponse>, String> {
-    let path = input_path.to_str().ok_or_else(|| "Could not parse path for some reason".to_string())?;
+    let path = input_path
+        .to_str()
+        .ok_or_else(|| "Could not parse path for some reason".to_string())?;
     println!("Input {} for {:?}", path, file);
     let mut destination = upload_path()?;
     let content_type = file.content_type().unwrap_or(&ContentType::Binary).clone();
@@ -195,7 +196,8 @@ async fn upload_object(
         }
     }
 
-    let upserted_object = find_object_by_hash(&conn, &content_hash)?.ok_or_else(|| "Could not find object after upserting".to_string())?;
+    let upserted_object = find_object_by_hash(&conn, &content_hash)?
+        .ok_or_else(|| "Could not find object after upserting".to_string())?;
 
     Ok(Json(UpsertObjectResponse {
         path: upserted_object.object_path,
@@ -208,14 +210,30 @@ async fn upload_object(
     }))
 }
 
-
 #[put("/virtual-object/<input_path..>", data = "<body>")]
-async fn upsert_virtual_object(input_path: PathBuf, body: Json<UpsertVirtualObjectRequest>, pool: &State<Pool>) -> Result<String, String> {
-    let path = input_path.to_str().ok_or_else(|| "Could not parse path for some reason".to_string())?;
+async fn upsert_virtual_object(
+    input_path: PathBuf,
+    body: Json<UpsertVirtualObjectRequest>,
+    pool: &State<Pool>,
+) -> Result<String, String> {
+    let path = input_path
+        .to_str()
+        .ok_or_else(|| "Could not parse path for some reason".to_string())?;
     let conn = pool.get().map_err(|e| format!("{}", e))?;
     let virtual_object = find_or_create_virtual_object_by_object_path(&conn, path)?;
-    println!("TODO {} {:?}", path, virtual_object);
-    Ok("TODO".to_string())
+    let mut objects = Vec::with_capacity(body.objects.len());
+    // This is technically an N query, but N < 20
+    // can reduce with map, and_then, collect, ok_or_else
+    for object in &body.objects {
+        match find_object_by_object_path(&conn, &object.path)? {
+            None => return Err(format!("Could not find object by path {}", object.path)),
+            Some(ob) => {
+                objects.push(ob)
+            }
+        }
+    }
+    replace_virtual_object_relations(&conn, &objects, &virtual_object)?;
+    Ok("OK".to_string())
 }
 
 #[derive(Debug)]
@@ -227,22 +245,32 @@ impl<'r> FromRequest<'r> for ExistingFile {
     async fn from_request(req: &'r Request<'_>) -> rocket::request::Outcome<Self, Self::Error> {
         let requested_path = req.routed_segments(0..).collect::<Vec<_>>().join("/");
 
-        println!("Tried to find Existing File for requested path {:?}", requested_path);// <------
-        // let pool = &State<Pool>;
+        println!(
+            "Tried to find Existing File for requested path {:?}",
+            requested_path
+        ); // <------
+           // let pool = &State<Pool>;
         let pool = match req.guard::<&State<Pool>>().await {
             Outcome::Success(pool) => pool,
-            Outcome::Failure((status, _)) => return Outcome::Failure((status, "Could not get database pool".to_string())),
-            Outcome::Forward(_) => return Outcome::Forward(())
+            Outcome::Failure((status, _)) => {
+                return Outcome::Failure((status, "Could not get database pool".to_string()))
+            }
+            Outcome::Forward(_) => return Outcome::Forward(()),
         };
         let conn = match pool.get().map_err(|e| format!("{}", e)) {
             Ok(conn) => conn,
             Err(_) => {
-                return Outcome::Failure((Status::new(500), "Could not get a database connection".to_string()));
+                return Outcome::Failure((
+                    Status::new(500),
+                    "Could not get a database connection".to_string(),
+                ));
             }
         };
         let width = req.query_value::<i32>("w").transpose().unwrap_or(None);
         let height = req.query_value::<i32>("h").transpose().unwrap_or(None);
-        let extension = Path::new(&requested_path).extension().and_then(|os| os.to_str());
+        let extension = Path::new(&requested_path)
+            .extension()
+            .and_then(|os| os.to_str());
         // Search for virtual object first
         match find_object_by_parameters(&conn, &requested_path, width, height, extension) {
             Ok(Some(object)) => Outcome::Success(ExistingFile(object)),
@@ -251,7 +279,7 @@ impl<'r> FromRequest<'r> for ExistingFile {
                 Ok(Some(object)) => Outcome::Success(ExistingFile(object)),
                 Ok(None) => Outcome::Forward(()),
                 Err(_) => Outcome::Forward(()),
-            }
+            },
             Err(_) => Outcome::Forward(()),
         }
     }
@@ -263,14 +291,14 @@ async fn robots_txt() -> &'static str {
 }
 
 #[get("/<_..>")]
-async fn find_object(
-    existing_file: ExistingFile,
-) -> Result<NamedFile, String> {
+async fn find_object(existing_file: ExistingFile) -> Result<NamedFile, String> {
     println!("Found existing file! {:?}", existing_file);
     let path = upload_path()?.join(existing_file.0.file_path);
     // TODO cache headers, will require I use a different type which implements Responder
     // see source of NamedFile
-    NamedFile::open(path).await.map_err(|err| format!("{}", err))
+    NamedFile::open(path)
+        .await
+        .map_err(|err| format!("{}", err))
 }
 
 #[launch]
@@ -281,7 +309,17 @@ fn rocket() -> _ {
     rocket::build()
         .manage(connection_pool)
         // make sure find_object is LAST, ALWAYS
-        .mount("/", routes![index, favicon, robots_txt, upload_object, upsert_virtual_object, find_object])
+        .mount(
+            "/",
+            routes![
+                index,
+                favicon,
+                robots_txt,
+                upload_object,
+                upsert_virtual_object,
+                find_object
+            ],
+        )
         .mount("/f", FileServer::from(static_path.as_path()))
         .attach(rocket::shield::Shield::new())
 }
