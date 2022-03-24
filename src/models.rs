@@ -54,8 +54,3 @@ pub struct NewVirtualObject {
     pub object_path: String,
 }
 
-#[derive(Queryable, Debug)]
-pub struct VirtualObjectRelation {
-    pub virtual_object_id: i32,
-    pub object_id: i32,
-}

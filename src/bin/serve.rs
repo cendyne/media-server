@@ -213,7 +213,7 @@ async fn upload_object(
 async fn upsert_virtual_object(input_path: PathBuf, body: Json<UpsertVirtualObjectRequest>, pool: &State<Pool>) -> Result<String, String> {
     let path = input_path.to_str().ok_or_else(|| "Could not parse path for some reason".to_string())?;
     let conn = pool.get().map_err(|e| format!("{}", e))?;
-    let virtual_object = find_or_create_virtual_object_by_object_path(&conn, &path)?;
+    let virtual_object = find_or_create_virtual_object_by_object_path(&conn, path)?;
     println!("TODO {} {:?}", path, virtual_object);
     Ok("TODO".to_string())
 }

@@ -8,16 +8,17 @@ pub mod schema;
 use diesel::prelude::*;
 use diesel::r2d2::{self, ConnectionManager};
 use diesel::sqlite::SqliteConnection;
+use diesel::sql_types;
 use dotenv::dotenv;
 use std::fs::create_dir_all;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
-use models::{NewObject, UpdateObject, NewVirtualObject, VirtualObjectRelation, VirtualObject, Object};
+use models::{NewObject, UpdateObject, NewVirtualObject, VirtualObject, Object};
 
 pub type Pool = r2d2::Pool<ConnectionManager<SqliteConnection>>;
 
-no_arg_sql_function!(last_insert_rowid, diesel::types::Integer);
+no_arg_sql_function!(last_insert_rowid, sql_types::Integer);
 
 pub fn connect_pool() -> Pool {
     dotenv().ok();
@@ -148,6 +149,10 @@ pub fn find_or_create_virtual_object_by_object_path(conn: &SqliteConnection, pat
     }
 }
 
+// TODO find all relationships to virtual Object
+// TODO Remove relationships
+// TODO Add relationships
+
 pub fn find_object_by_parameters(
     conn: &SqliteConnection,
     path: &str,
@@ -168,5 +173,5 @@ pub fn find_object_by_parameters(
     println!("Found virtual object {:?}", virtual_object);
     // TODO
     // TODO implement virtual object lookup and subsequent object
-    Err("TODO".to_string())
+    Ok(None)
 }
