@@ -12,3 +12,5 @@ Cargo.lock
 .env
 *.sqlite
 files/
+.DS_Store
+tmp/

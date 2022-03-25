@@ -69,7 +69,7 @@ async fn upload_object(
     let path = input_path
         .to_str()
         .ok_or_else(|| "Could not parse path for some reason".to_string())?;
-    println!("Input {} for {:?}", path, file);
+    println!("Input '{}' for {:?}", path, file);
     let mut destination = upload_path()?;
     let content_type = file.content_type().unwrap_or(&ContentType::Binary).clone();
 
@@ -161,6 +161,11 @@ async fn upload_object(
     destination.push(content_name.clone());
     let conn = pool.get().map_err(|e| format!("{}", e))?;
     let existing_object = find_object_by_hash(&conn, &content_hash)?;
+    let object_path = if path.is_empty() {
+        content_name.clone()
+    } else {
+        path.to_string()
+    };
     match existing_object {
         Some(obj) => {
             // TODO headers
@@ -184,7 +189,7 @@ async fn upload_object(
                 ),
                 content_encoding: "identity".to_string(),
                 length: file.len() as i64,
-                object_path: path.to_string(),
+                object_path,
                 file_path: content_name,
                 created: now as i64,
                 modified: now as i64,
@@ -227,9 +232,7 @@ async fn upsert_virtual_object(
     for object in &body.objects {
         match find_object_by_object_path(&conn, &object.path)? {
             None => return Err(format!("Could not find object by path {}", object.path)),
-            Some(ob) => {
-                objects.push(ob)
-            }
+            Some(ob) => objects.push(ob),
         }
     }
     replace_virtual_object_relations(&conn, &objects, &virtual_object)?;

@@ -32,8 +32,4 @@ table! {
 joinable!(virtual_object_relation -> object (object_id));
 joinable!(virtual_object_relation -> virtual_object (virtual_object_id));
 
-allow_tables_to_appear_in_same_query!(
-    object,
-    virtual_object,
-    virtual_object_relation,
-);
+allow_tables_to_appear_in_same_query!(object, virtual_object, virtual_object_relation,);

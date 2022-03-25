@@ -10,6 +10,7 @@ use diesel::r2d2::{self, ConnectionManager};
 use diesel::sql_types;
 use diesel::sqlite::SqliteConnection;
 use dotenv::dotenv;
+use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::fs::create_dir_all;
 use std::path::{Path, PathBuf};
@@ -68,7 +69,7 @@ pub fn update_object(
         .duration_since(SystemTime::UNIX_EPOCH)
         .map_err(|err| format!("{}", err))?
         .as_secs();
-    let _ = diesel::update(object::table)
+    let count = diesel::update(object::table)
         .set(&UpdateObject {
             id,
             modified: now as i64,
@@ -76,8 +77,10 @@ pub fn update_object(
             height,
             content_headers: headers,
         })
+        .filter(object::id.eq(&id))
         .execute(conn)
         .map_err(|err| format!("{}", err))?;
+    println!("Updated {}", count);
     Ok(())
 }
 
@@ -236,9 +239,7 @@ pub fn replace_virtual_object_relations(
         to_have.insert(object.id);
     }
     let has = find_related_objects_to_virtual_object(conn, virtual_object)?;
-    let has_ids : HashSet<i32> = has.iter()
-        .map(|o| o.id)
-        .collect();
+    let has_ids: HashSet<i32> = has.iter().map(|o| o.id).collect();
     // println!("Has: {:?}", has);
     let to_keep_ids: HashSet<i32> = has_ids.intersection(&to_have).map(|i| i.clone()).collect();
     // println!("To Keep Ids: {:?}", to_keep_ids);
@@ -279,10 +280,14 @@ pub fn find_object_by_parameters(
         return Ok(None);
     }
     // TODO switch to content type matching instead of ext
-    let same_extension : Vec<&Object> = match extension {
+    let same_extension: Vec<Object> = match extension {
         // This is kind of dumb
-        None => objects.iter().collect(),
-        Some(ext) => objects.iter().filter(|o| o.file_path.ends_with(ext)).collect()
+        None => objects.iter().map(|o| o.clone()).collect(),
+        Some(ext) => objects
+            .iter()
+            .filter(|o| o.file_path.ends_with(ext))
+            .map(|o| o.clone())
+            .collect(),
     };
     // Bail out early
     if same_extension.is_empty() {
@@ -291,18 +296,51 @@ pub fn find_object_by_parameters(
     }
     // TODO
     println!("Looking for closest {:?}, {:?}", width, height);
-    let closest = match (width, height) {
-        (Some(width), Some(height)) => same_extension,
-        (Some(width), None) => same_extension,
-        (None, Some(height)) => same_extension,
-        (None, None) => same_extension,
-    };
-    if closest.is_empty() {
-        println!("No matching extension");
-        return Ok(None);
-    }
-    // This also looks dumb
-    let closest_found : Option<Object> = closest.first().map(|o| o.clone().clone());
-    println!("Found closest {:?}", closest_found);
-    Ok(closest_found)
+    let closest = same_extension.iter().reduce(|left, right| {
+        println!("Folding left:{:?}, right:{:?}", (left.id, left.width, left.height), (right.id, right.width, right.height));
+        match (
+            left.width,
+            left.height,
+            right.width,
+            right.height,
+            width,
+            height,
+        ) {
+            // ---------EXACT-MATCHES--------------------
+            // Keep left if exact match
+            (Some(wl), Some(hl), _, _, Some(w), Some(h)) if wl == w && hl == h => left,
+            // Keep right if exact match
+            (_, _, Some(wr), Some(hr), Some(w), Some(h)) if wr == w && hr == h => right,
+            // Keep left if width matches exactly and height is smaller than width
+            (Some(wl), _, _, _, Some(w), Some(h)) if wl == w && h <= w => left,
+            // Keep left if height matches exactly and width is smaller than height
+            (_, Some(hl), _, _, Some(w), Some(h)) if hl == h && w <= h => left,
+            // Keep right if width matches exactly and height is smaller than width
+            (_, _, Some(wr), _, Some(w), Some(h)) if wr == w && h <= w => right,
+            // Keep right if height matches exactly and width is smaller than height
+            (_, _, _, Some(hr), Some(w), Some(h)) if hr == h && w <= h => right,
+            // Keep right if width matches exactly
+            (_, _, Some(wr), _, Some(w), None) if wr == w => right,
+            // Keep right if height matches exactly
+            (_, _, _, Some(hr), None, Some(h)) if hr == h => right,
+
+            // ------------------------------------------
+            // Bias right if smaller than left but greater than desired width
+            (Some(wl), _, Some(wr), _, Some(w), Some(h)) if wr >= w && (wr < wl || wl < w) && h <= w => right,
+            (Some(wl), _, Some(wr), _, Some(w), None) if wr >= w && (wr < wl || wl < w) => right,
+            // Bias right if smaller than left but greater than desired height
+            (_, Some(hl), _, Some(hr), Some(w), Some(h)) if hr >= h && (hr < hl || hl < h) && w <= h => right,
+            (_, Some(hl), _, Some(hr), None, Some(h)) if hr >= h && (hr < hl || hl < h) => right,
+            // Bias right if width is a greater size
+            (None, _, Some(wr), _, Some(w), Some(h)) if wr >= w && h <= w => right,
+            (None, _, Some(wr), _, Some(w), None) if wr >= w => right,
+            // Bias right if height is a greater size
+            (_, None, _, Some(hr), Some(w), Some(h)) if hr >= h && w <= h => right,
+            (_, None, _, Some(hr), None, Some(h)) if hr >= h => right,
+            // Keep left if right is not greater or equal to
+            _ => left,
+        }
+    });
+    println!("Found closest {:?}", closest);
+    Ok(closest.map(|o| o.clone()))
 }
