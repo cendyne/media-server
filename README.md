@@ -13,10 +13,13 @@ While primarily for images it can store other common file types too.
 6. Refactor and improve content type to extension mapping
 7. Extension to content type mapping
 8. Refactor lookup handler code
+9. Support multiple path lookup for virtual object
+10. Parse content extension and encoding extension
 
 ## Next things to do
 
-* Add file extension as content type parameter
+* Extension and encoding extension to content type and content encoding
+* Redo file extension as content type parameter
 * Filter content type in database query
 * Prioritized content type
 * Custom NamedFile response with custom headers
@@ -25,7 +28,11 @@ While primarily for images it can store other common file types too.
 * Send custom headers on objects
 * Custom error type and error response
 * Better virtual object choice by resolution
-
+* Virtual Object info endpoint
+* Virtual Object tags
+* Virtual Object path prefixes
+* Create virtual object for object if path is set
+* No longer rely upon public path on object
 * Add handler path to include width and height, rather than query parameter
 * Use transaction around inserts with last insert id
 * Determine content type and encoding by extension (e.g. `.js.gz => text/javascript gzip`)
