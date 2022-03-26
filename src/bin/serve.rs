@@ -4,7 +4,6 @@ extern crate diesel;
 extern crate media_server;
 use self::models::*;
 // use diesel::prelude::*;
-use ct_codecs::{Base64UrlSafeNoPadding, Encoder};
 use media_server::*;
 use rocket::form::Form;
 use rocket::fs::FileServer;
@@ -14,9 +13,9 @@ use rocket::http::{ContentType, MediaType, Status};
 use rocket::request::{FromRequest, Outcome, Request};
 use rocket::serde::{json::Json, Deserialize, Serialize};
 use rocket::State;
-use std::io::Read;
+
+use either::Either;
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
 
 #[get("/")]
 fn index() -> &'static str {
@@ -33,9 +32,6 @@ const TINY_GIF: [u8; 37] = [
 fn favicon() -> (ContentType, &'static [u8]) {
     (ContentType::from(MediaType::GIF), &TINY_GIF)
 }
-
-pub const JXL: ContentType = ContentType(MediaType::const_new("image", "jxl", &[]));
-pub const MP3: ContentType = ContentType(MediaType::const_new("audio", "mpeg", &[]));
 
 #[derive(Deserialize, Debug)]
 struct UpsertVirtualObjectRequestObjectReference {
@@ -66,143 +62,79 @@ async fn upload_object(
     height: Option<i32>,
     pool: &State<Pool>,
 ) -> Result<Json<UpsertObjectResponse>, String> {
+    let conn = pool.get().map_err(|e| format!("{}", e))?;
     let path = input_path
         .to_str()
         .ok_or_else(|| "Could not parse path for some reason".to_string())?;
     println!("Input '{}' for {:?}", path, file);
     let mut destination = upload_path()?;
-    let content_type = file.content_type().unwrap_or(&ContentType::Binary).clone();
+    let user_ext = file
+        .raw_name()
+        .map(|fname| fname.dangerous_unsafe_unsanitized_raw())
+        .map(|rawname| rawname.as_str())
+        .and_then(|name| Path::new(name).extension())
+        .and_then(|os| os.to_str())
+        .ok_or("bin")?;
+    // Not all clients know that .jxl is image/jxl
+    // The following will try to find out what it is
+    // based on the user provided file extension,
+    // should the content type be seen as binary
+    let content_type = file.content_type().map_or_else(
+        || ContentType::Binary,
+        |ct| {
+            if ct == &ContentType::Binary {
+                match EXTENSION_CONTENT_TYPES.get(user_ext) {
+                    Some((top, sub)) => ContentType::from(MediaType::const_new(top, sub, &[])),
+                    None => ContentType::Binary,
+                }
+            } else {
+                ct.clone()
+            }
+        },
+    );
+    let content_type_str = format!(
+        "{}/{}",
+        content_type.media_type().top(),
+        content_type.media_type().sub()
+    );
+    // Force into a safe known extension
+    let ext = content_type_to_extension(&content_type, user_ext)?;
 
-    let ext = if ContentType::JPEG == content_type {
-        "jpg"
-    } else if ContentType::GIF == content_type {
-        "gif"
-    } else if ContentType::AVIF == content_type {
-        "avif"
-    } else if ContentType::PNG == content_type {
-        "png"
-    } else if ContentType::SVG == content_type {
-        "svg"
-    } else if ContentType::WEBP == content_type {
-        // image/webp
-        "webp"
-    } else if ContentType::WEBM == content_type || ContentType::WEBA == content_type {
-        // video/webm, audio/webm
-        "webm"
-    } else if ContentType::MP4 == content_type {
-        "mp4"
-    } else if ContentType::PDF == content_type {
-        "pdf"
-    } else if ContentType::Plain == content_type {
-        "txt"
-    } else if ContentType::HTML == content_type {
-        "html"
-    } else if ContentType::JSON == content_type {
-        "json"
-    } else if ContentType::AAC == content_type {
-        "aac"
-    } else if ContentType::OGG == content_type {
-        "ogg"
-    } else if MP3 == content_type {
-        "mp3"
-    } else if JXL == content_type {
-        "jxl"
-    } else if ContentType::ZIP == content_type {
-        "zip"
-    } else if ContentType::GZIP == content_type {
-        "gz"
-    } else if ContentType::TAR == content_type {
-        "tar"
-    } else if ContentType::CSV == content_type {
-        "csv"
-    } else {
-        println!("Looking at name {:?}", file.raw_name());
-        let ext = file
-            .raw_name()
-            .map(|fname| fname.dangerous_unsafe_unsanitized_raw())
-            .map(|rawname| rawname.as_str())
-            .and_then(|name| Path::new(name).extension())
-            .and_then(|os| os.to_str())
-            .ok_or("bin")?;
-        // todo make better
-        match ext {
-            "jxl" => "jxl",
-            _ => "bin",
-        }
-    };
-
+    // Need path to temp file
     let temp_path = file
         .path()
         .ok_or_else(|| "File upload is unsupported".to_string())?;
-    let mut open_file = std::fs::File::open(temp_path).map_err(|err| format!("{:?}", err))?;
-    let mut buffer: [u8; 128] = [0; 128];
-    let mut key: [u8; blake3::KEY_LEN] = [0; blake3::KEY_LEN];
-    let keystr = "todo key here".as_bytes();
-    key[..keystr.len()].copy_from_slice(keystr);
-    let mut hasher = blake3::Hasher::new_keyed(&key);
-    let mut read_bytes = open_file
-        .read(&mut buffer)
-        .map_err(|err| format!("{:?}", err))?;
-    let mut total_bytes = 0;
-    while read_bytes > 0 {
-        total_bytes += read_bytes;
-        hasher.update(&buffer[0..read_bytes]);
-        // continue
-        read_bytes = open_file
-            .read(&mut buffer)
-            .map_err(|err| format!("{:?}", err))?;
-    }
-    println!("Total bytes {} vs len {}", total_bytes, file.len());
-    let hash = hasher.finalize();
-    let hash_bytes = hash.as_bytes();
-    let content_hash =
-        Base64UrlSafeNoPadding::encode_to_string(&hash_bytes).map_err(|e| format!("{}", e))?;
-    let content_name = format!("{}.{}", &content_hash[..10], ext);
-    destination.push(content_name.clone());
-    let conn = pool.get().map_err(|e| format!("{}", e))?;
-    let existing_object = find_object_by_hash(&conn, &content_hash)?;
-    let object_path = if path.is_empty() {
-        content_name.clone()
-    } else {
-        path.to_string()
-    };
-    match existing_object {
-        Some(obj) => {
-            // TODO headers
-            update_object(&conn, obj.id, width, height, None)?;
-        }
-        None => {
-            // only need to save it a first time
+    // Read temp file and generate a content hash (will be used as etag too)
+    let content_hash = hash_file(temp_path)?;
+
+    // Build internal file path
+    let file_path = format!("{}.{}", &content_hash[..10], ext);
+    destination.push(&file_path);
+    let object_path = if path.is_empty() { &file_path } else { path };
+
+    let length = file.len() as i64;
+
+    let upserted_object_rl = upsert_object(
+        &conn,
+        UpsertObjectCommand {
+            content_hash: &content_hash,
+            width,
+            height,
+            content_type: &content_type_str,
+            length,
+            object_path,
+            file_path: &file_path,
+        },
+    )?;
+    let upserted_object = match upserted_object_rl {
+        Either::Left(object) => {
             file.persist_to(&destination)
                 .await
                 .map_err(|err| format!("{}", err))?;
-            let now = SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .map_err(|err| format!("{}", err))?
-                .as_secs();
-            let new_object = NewObject {
-                content_hash: content_hash.clone(),
-                content_type: format!(
-                    "{}/{}",
-                    content_type.media_type().top(),
-                    content_type.media_type().sub()
-                ),
-                content_encoding: "identity".to_string(),
-                length: file.len() as i64,
-                object_path,
-                file_path: content_name,
-                created: now as i64,
-                modified: now as i64,
-                width,
-                height,
-                content_headers: None,
-            };
-            create_object(&conn, &new_object)?;
+            object
         }
-    }
-
-    let upserted_object = find_object_by_hash(&conn, &content_hash)?
-        .ok_or_else(|| "Could not find object after upserting".to_string())?;
+        Either::Right(object) => object,
+    };
 
     Ok(Json(UpsertObjectResponse {
         path: upserted_object.object_path,
