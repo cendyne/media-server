@@ -12,17 +12,25 @@ While primarily for images it can store other common file types too.
 5. Virtual object path lookup
 6. Refactor and improve content type to extension mapping
 7. Extension to content type mapping
+8. Refactor lookup handler code
 
 ## Next things to do
 
-* Refactor lookup handler code
+* Add file extension as content type parameter
+* Filter content type in database query
+* Prioritized content type
 * Custom NamedFile response with custom headers
 * Send headers on objects with custom named file response
 * Store headers on objects
 * Send custom headers on objects
 * Custom error type and error response
 * Better virtual object choice by resolution
-* Add file extension as content type parameter
+
 * Add handler path to include width and height, rather than query parameter
 * Use transaction around inserts with last insert id
+* Determine content type and encoding by extension (e.g. `.js.gz => text/javascript gzip`)
+    > https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Encoding
+    > https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept-Encoding
+* Add support for content encoding
+* Add support for responding with content encoding depending on extension
 

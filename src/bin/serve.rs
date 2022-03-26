@@ -178,13 +178,7 @@ struct ExistingFile(Object);
 impl<'r> FromRequest<'r> for ExistingFile {
     type Error = String;
     async fn from_request(req: &'r Request<'_>) -> rocket::request::Outcome<Self, Self::Error> {
-        let requested_path = req.routed_segments(0..).collect::<Vec<_>>().join("/");
-
-        println!(
-            "Tried to find Existing File for requested path {:?}",
-            requested_path
-        ); // <------
-           // let pool = &State<Pool>;
+        // TODO shorten some how?
         let pool = match req.guard::<&State<Pool>>().await {
             Outcome::Success(pool) => pool,
             Outcome::Failure((status, _)) => {
@@ -192,6 +186,7 @@ impl<'r> FromRequest<'r> for ExistingFile {
             }
             Outcome::Forward(_) => return Outcome::Forward(()),
         };
+        // TODO shorten some how?
         let conn = match pool.get().map_err(|e| format!("{}", e)) {
             Ok(conn) => conn,
             Err(_) => {
@@ -201,21 +196,13 @@ impl<'r> FromRequest<'r> for ExistingFile {
                 ));
             }
         };
-        let width = req.query_value::<i32>("w").transpose().unwrap_or(None);
-        let height = req.query_value::<i32>("h").transpose().unwrap_or(None);
-        let extension = Path::new(&requested_path)
-            .extension()
-            .and_then(|os| os.to_str());
+
+        let query = parse_existing_file_request(req);
+
         // Search for virtual object first
-        match find_object_by_parameters(&conn, &requested_path, width, height, extension) {
+        match search_existing_file_query(&conn, query) {
             Ok(Some(object)) => Outcome::Success(ExistingFile(object)),
-            // Try to find a normal object
-            Ok(None) => match find_object_by_object_path(&conn, &requested_path) {
-                Ok(Some(object)) => Outcome::Success(ExistingFile(object)),
-                Ok(None) => Outcome::Forward(()),
-                Err(_) => Outcome::Forward(()),
-            },
-            Err(_) => Outcome::Forward(()),
+            _ => Outcome::Forward(()),
         }
     }
 }

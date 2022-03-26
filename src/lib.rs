@@ -14,6 +14,7 @@ use dotenv::dotenv;
 use either::Either;
 use phf::{phf_map, phf_set};
 use rocket::http::ContentType;
+use rocket::request::Request;
 use std::collections::HashSet;
 use std::fs::create_dir_all;
 use std::io::Read;
@@ -524,6 +525,7 @@ pub fn find_object_by_parameters(
     extension: Option<&str>,
 ) -> Result<Option<Object>, String> {
     println!("Looking for virtual object by path {}", path);
+    // TODO supply extension so it can try the path with and without the extension
     let virtual_object = match find_virtual_object_by_object_path(conn, path) {
         Ok(Some(virtual_object)) => virtual_object,
         Ok(None) => {
@@ -535,6 +537,8 @@ pub fn find_object_by_parameters(
         }
     };
     println!("Found virtual object {:?}", virtual_object);
+    // TODO find only related objects that match content type
+    // TODO consider content encoding
     let objects = find_related_objects_to_virtual_object(conn, &virtual_object)?;
     println!("Found objects {:?}", objects);
     if objects.is_empty() {
@@ -643,4 +647,50 @@ pub fn hash_file(path: &Path) -> Result<String, String> {
     let content_hash =
         Base64UrlSafeNoPadding::encode_to_string(&hash_bytes).map_err(|e| format!("{}", e))?;
     Ok(content_hash)
+}
+
+#[derive(Debug)]
+pub struct ExistingFileRequestQuery {
+    pub raw_path: String,
+    pub width: Option<i32>,
+    pub height: Option<i32>,
+    pub extension: Option<String>,
+}
+
+pub fn parse_existing_file_request(req: &Request<'_>) -> ExistingFileRequestQuery {
+    // r for resize
+    // TODO detect if requested path begins with r<width>x<height>/
+    // TODO extract extension
+    // TODO extract encoding (identity, br, gzip, etc.)
+    let raw_path = req.routed_segments(0..).collect::<Vec<_>>().join("/");
+    // TODO or use path supplied width & height
+    let width = req.query_value::<i32>("w").transpose().unwrap_or(None);
+    let height = req.query_value::<i32>("h").transpose().unwrap_or(None);
+    let extension = Path::new(&raw_path)
+        .extension()
+        .and_then(|os| os.to_str().map(|s| s.to_string()));
+
+    ExistingFileRequestQuery {
+        raw_path,
+        width,
+        height,
+        extension,
+    }
+}
+
+pub fn search_existing_file_query(
+    conn: &SqliteConnection,
+    query: ExistingFileRequestQuery,
+) -> Result<Option<models::Object>, String> {
+    find_object_by_parameters(
+        conn,
+        &query.raw_path,
+        query.width,
+        query.height,
+        query.extension.as_deref(),
+    )
+    .and_then(|opt| match opt {
+        Some(object) => Ok(Some(object)),
+        None => find_object_by_object_path(conn, &query.raw_path),
+    })
 }
