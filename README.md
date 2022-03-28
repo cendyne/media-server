@@ -17,30 +17,44 @@ While primarily for images it can store other common file types too.
 10. Parse content extension and encoding extension
 11. Refactored content type and extension code
 12. Refactored object, virtual object, find, and hash code
+13. Redo file extension as content type parameter
+14. Store content encoding (as input) onto record
+15. Override extension to content type
+16. Override encoding to content encoding
+17. Handler path supports `r<w>x<h>/` prefixing instead of query params
 
 ## Next things to do
 
-* Extension and encoding extension to content type and content encoding
-* Redo file extension as content type parameter
+### Content Types and Encoding
+* Parse form file name into content encoding and content type
+* Determine content type and encoding by extension (e.g. `.js.gz => text/javascript gzip`)
+    > https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Encoding
+    > https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept-Encoding
 * Filter content type in database query
+* Add support for responding with content encoding depending on extension
 
-* Prioritized content type
+### Virtual Object Enhancements
+* Virtual Object can list prioritized content type in case user content type is not specified
+* Better virtual object choice by resolution
+* Use transaction around inserts with last insert id
+
+### Object enhancements
+* Create virtual object for object if path is set
+* No longer rely upon public path on object
+* Upsert should update content encoding if supplied
+* Upsert should update content type if supplied
+
+### Content Response
 * Custom NamedFile response with custom headers
 * Send headers on objects with custom named file response
 * Store headers on objects
 * Send custom headers on objects
+
+### Error Response
 * Custom error type and error response
-* Better virtual object choice by resolution
+
+### Meta Data
 * Virtual Object info endpoint
 * Virtual Object tags
 * Virtual Object path prefixes
-* Create virtual object for object if path is set
-* No longer rely upon public path on object
-* Add handler path to include width and height, rather than query parameter
-* Use transaction around inserts with last insert id
-* Determine content type and encoding by extension (e.g. `.js.gz => text/javascript gzip`)
-    > https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Encoding
-    > https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept-Encoding
-* Add support for content encoding
-* Add support for responding with content encoding depending on extension
 

@@ -13,6 +13,7 @@ mod object;
 mod sqlite;
 mod virtual_object;
 
+pub use content_encoding::ContentEncodingValue;
 pub use content_type::{content_type_or_from_safe_ext, content_type_to_extension};
 pub use find_object::{
     find_object_by_parameters, parse_existing_file_request, search_existing_file_query,

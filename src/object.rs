@@ -3,6 +3,7 @@ use diesel::sqlite::SqliteConnection;
 use either::Either;
 use std::time::SystemTime;
 
+use crate::content_encoding::ContentEncodingValue;
 use crate::models::{NewObject, Object, UpdateObject};
 
 pub fn create_object(conn: &SqliteConnection, new_object: &NewObject) -> Result<(), String> {
@@ -78,6 +79,7 @@ pub struct UpsertObjectCommand<'a> {
     pub object_path: &'a str,
     pub file_path: &'a str,
     pub content_hash: &'a str,
+    pub content_encoding: ContentEncodingValue,
 }
 
 pub fn upsert_object(
@@ -89,6 +91,8 @@ pub fn upsert_object(
     match existing_object {
         Some(obj) => {
             // TODO headers
+            // TODO use content encoding (may change)
+            // TODO use content type (may change)
             update_object(conn, obj.id, command.width, command.height, None)?;
         }
         None => {
@@ -101,8 +105,7 @@ pub fn upsert_object(
             let new_object = NewObject {
                 content_hash: command.content_hash.to_string(),
                 content_type: command.content_type.to_string(),
-                // TODO content encoding
-                content_encoding: "identity".to_string(),
+                content_encoding: command.content_encoding.to_string(),
                 length: command.length,
                 object_path: command.object_path.to_string(),
                 file_path: command.file_path.to_string(),

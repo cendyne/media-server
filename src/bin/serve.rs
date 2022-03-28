@@ -54,42 +54,59 @@ struct UpsertObjectResponse {
     height: Option<i32>,
 }
 
-#[put("/object/<input_path..>?<width>&<height>", data = "<file>")]
+#[put("/object/<input_path..>?<width>&<height>&<enc>&<ext>", data = "<file>")]
 async fn upload_object(
     input_path: PathBuf,
     mut file: Form<TempFile<'_>>,
     width: Option<i32>,
     height: Option<i32>,
     pool: &State<Pool>,
+    enc: Option<ContentEncodingValue>,
+    ext: Option<&str>,
 ) -> Result<Json<UpsertObjectResponse>, String> {
     let conn = pool.get().map_err(|e| format!("{}", e))?;
     let path = input_path
         .to_str()
         .ok_or_else(|| "Could not parse path for some reason".to_string())?;
-    println!("Input '{}' for {:?}", path, file);
+    println!("Input '{}' for {:?} enc: {:?} ext: {:?}", path, file, enc, ext);
     let mut destination = upload_path()?;
-    let user_ext = file
-        .raw_name()
-        .map(|fname| fname.dangerous_unsafe_unsanitized_raw())
-        .map(|rawname| rawname.as_str())
-        .and_then(|name| Path::new(name).extension())
-        .and_then(|os| os.to_str())
+    let user_ext = ext
+        .or_else(|| {
+            file.raw_name()
+                .map(|fname| fname.dangerous_unsafe_unsanitized_raw())
+                .map(|rawname| rawname.as_str())
+                // TODO look for second extension like .tar.gz
+                // and set content encoding properly
+                .and_then(|name| Path::new(name).extension())
+                .and_then(|os| os.to_str())
+        })
         .ok_or("bin")?;
     // Not all clients know that .jxl is image/jxl
     // The following will try to find out what it is
     // based on the user provided file extension,
     // should the content type be seen as binary
-    let content_type = file.content_type().map_or_else(
-        || ContentType::Binary,
-        |ct| content_type_or_from_safe_ext(ct, user_ext),
-    );
+    // TODO also look at file content encoding output (usually identity?)
+    let content_type = if let Some(user_ext) = ext {
+        content_type_or_from_safe_ext(&ContentType::Binary, user_ext)
+    } else {
+        file.content_type().map_or_else(
+            || ContentType::Binary,
+            |ct| content_type_or_from_safe_ext(ct, user_ext),
+        )
+    };
     let content_type_str = format!(
         "{}/{}",
         content_type.media_type().top(),
         content_type.media_type().sub()
     );
     // Force into a safe known extension
-    let ext = content_type_to_extension(&content_type, user_ext)?;
+    let fs_content_ext = content_type_to_extension(&content_type, user_ext)?;
+    let encoding = enc.unwrap_or(ContentEncodingValue::Identity);
+    let fs_ext = if encoding.has_fs_extension() {
+        format!("{}{}", fs_content_ext, encoding.fs_extension())
+    } else {
+        fs_content_ext.to_string()
+    };
 
     // Need path to temp file
     let temp_path = file
@@ -99,7 +116,7 @@ async fn upload_object(
     let content_hash = hash_file(temp_path)?;
 
     // Build internal file path
-    let file_path = format!("{}.{}", &content_hash[..10], ext);
+    let file_path = format!("{}.{}", &content_hash[..10], fs_ext);
     destination.push(&file_path);
     let object_path = if path.is_empty() { &file_path } else { path };
 
@@ -115,6 +132,7 @@ async fn upload_object(
             length,
             object_path,
             file_path: &file_path,
+            content_encoding: encoding,
         },
     )?;
     let upserted_object = match upserted_object_rl {
