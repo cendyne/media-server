@@ -15,12 +15,15 @@ While primarily for images it can store other common file types too.
 8. Refactor lookup handler code
 9. Support multiple path lookup for virtual object
 10. Parse content extension and encoding extension
+11. Refactored content type and extension code
+12. Refactored object, virtual object, find, and hash code
 
 ## Next things to do
 
 * Extension and encoding extension to content type and content encoding
 * Redo file extension as content type parameter
 * Filter content type in database query
+
 * Prioritized content type
 * Custom NamedFile response with custom headers
 * Send headers on objects with custom named file response

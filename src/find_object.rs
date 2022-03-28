@@ -1,0 +1,276 @@
+use crate::object::find_object_by_object_path;
+use crate::virtual_object::{
+    find_related_objects_to_virtual_object, find_virtual_object_by_object_paths,
+};
+use diesel::sqlite::SqliteConnection;
+
+use crate::models::Object;
+
+use ouroboros::self_referencing;
+
+// use rocket::http::ContentType;
+use rocket::request::Request;
+
+pub fn find_object_by_parameters(
+    conn: &SqliteConnection,
+    paths: &[&str],
+    width: Option<i32>,
+    height: Option<i32>,
+    // content_type: Option<(&'static str, &'static str)>,
+) -> Result<Option<Object>, String> {
+    println!("Looking for virtual object by path {:?}", paths);
+    // TODO supply extension so it can try the path with and without the extension
+    let virtual_object = match find_virtual_object_by_object_paths(conn, paths) {
+        Ok(Some(virtual_object)) => virtual_object,
+        Ok(None) => {
+            println!("Could not find virtual object");
+            return Ok(None);
+        }
+        Err(_) => {
+            return Ok(None);
+        }
+    };
+    println!("Found virtual object {:?}", virtual_object);
+    // TODO find only related objects that match content type
+    // TODO consider content encoding
+    let objects = find_related_objects_to_virtual_object(conn, &virtual_object)?;
+    println!("Found objects {:?}", objects);
+    if objects.is_empty() {
+        println!("Bailing out early, objects is empty");
+        return Ok(None);
+    }
+    // TODO switch to content type matching instead of ext
+    // TODO include content encoding
+    let same_extension: Vec<Object> = objects.to_vec();
+    // Bail out early
+    if same_extension.is_empty() {
+        println!("No matching extension");
+        return Ok(None);
+    }
+    // TODO
+    println!("Looking for closest {:?}, {:?}", width, height);
+    let closest = same_extension.iter().reduce(|left, right| {
+        println!(
+            "Folding left:{:?}, right:{:?}",
+            (left.id, left.width, left.height),
+            (right.id, right.width, right.height)
+        );
+        match (
+            left.width,
+            left.height,
+            right.width,
+            right.height,
+            width,
+            height,
+        ) {
+            // ---------EXACT-MATCHES--------------------
+            // Keep left if exact match
+            (Some(wl), Some(hl), _, _, Some(w), Some(h)) if wl == w && hl == h => left,
+            // Keep right if exact match
+            (_, _, Some(wr), Some(hr), Some(w), Some(h)) if wr == w && hr == h => right,
+            // Keep left if width matches exactly and height is smaller than width
+            (Some(wl), _, _, _, Some(w), Some(h)) if wl == w && h <= w => left,
+            // Keep left if height matches exactly and width is smaller than height
+            (_, Some(hl), _, _, Some(w), Some(h)) if hl == h && w <= h => left,
+            // Keep right if width matches exactly and height is smaller than width
+            (_, _, Some(wr), _, Some(w), Some(h)) if wr == w && h <= w => right,
+            // Keep right if height matches exactly and width is smaller than height
+            (_, _, _, Some(hr), Some(w), Some(h)) if hr == h && w <= h => right,
+            // Keep right if width matches exactly
+            (_, _, Some(wr), _, Some(w), None) if wr == w => right,
+            // Keep right if height matches exactly
+            (_, _, _, Some(hr), None, Some(h)) if hr == h => right,
+
+            // ------------------------------------------
+            // Bias right if smaller than left but greater than desired width
+            (Some(wl), _, Some(wr), _, Some(w), Some(h))
+                if wr >= w && (wr < wl || wl < w) && h <= w =>
+            {
+                right
+            }
+            (Some(wl), _, Some(wr), _, Some(w), None) if wr >= w && (wr < wl || wl < w) => right,
+            // Bias right if smaller than left but greater than desired height
+            (_, Some(hl), _, Some(hr), Some(w), Some(h))
+                if hr >= h && (hr < hl || hl < h) && w <= h =>
+            {
+                right
+            }
+            (_, Some(hl), _, Some(hr), None, Some(h)) if hr >= h && (hr < hl || hl < h) => right,
+            // Bias right if width is a greater size
+            (None, _, Some(wr), _, Some(w), Some(h)) if wr >= w && h <= w => right,
+            (None, _, Some(wr), _, Some(w), None) if wr >= w => right,
+            // Bias right if height is a greater size
+            (_, None, _, Some(hr), Some(w), Some(h)) if hr >= h && w <= h => right,
+            (_, None, _, Some(hr), None, Some(h)) if hr >= h => right,
+            // Keep left if right is not greater or equal to
+            _ => left,
+        }
+    });
+    println!("Found closest {:?}", closest);
+    Ok(closest.cloned())
+}
+
+#[self_referencing]
+pub struct ExistingFileRequestQuery {
+    raw_path: String,
+    #[covariant]
+    #[borrows(raw_path)]
+    paths: Vec<&'this str>,
+    width: Option<i32>,
+    height: Option<i32>,
+    // extension: Option<String>,
+}
+
+pub fn parse_existing_file_request(req: &Request<'_>) -> ExistingFileRequestQuery {
+    // r for resize
+    // TODO detect if requested path begins with r<width>x<height>/
+    // TODO extract extension
+    // TODO extract encoding (identity, br, gzip, etc.)
+    let raw_path = req.routed_segments(0..).collect::<Vec<_>>().join("/");
+    // TODO or use path supplied width & height
+    let mut width = req.query_value::<i32>("w").transpose().unwrap_or(None);
+    let mut height = req.query_value::<i32>("h").transpose().unwrap_or(None);
+    let mut first_segment_is_dimensions = false;
+    let first_segment = req.routed_segment(0);
+    // let first_length = first_segment.map(|s| s.len()).unwrap_or(0);
+    match first_segment {
+        None => {}
+        Some(segment) => {
+            if let Some(segment_slice) = segment.strip_prefix('r') {
+                match segment_slice.find('x') {
+                    None => {
+                        // Technically r100 is fine (width 100)
+                        println!("Found r'{}'", segment_slice);
+                        if let Ok(w) = segment_slice.parse::<i32>() {
+                            width = Some(w);
+                            first_segment_is_dimensions = true;
+                            println!("Width updated to {}", w);
+                        }
+                    }
+                    Some(x_index) => {
+                        let width_slice = &segment_slice[..x_index];
+                        let height_slice = &segment_slice[x_index + 1..];
+                        println!("Found r'{}'x'{}'", width_slice, height_slice);
+                        // Technically rx100 is fine too (height 100)
+                        if !width_slice.is_empty() {
+                            if let Ok(w) = width_slice.parse::<i32>() {
+                                width = Some(w);
+                                first_segment_is_dimensions = true;
+                                println!("Width updated to {}", w);
+                            }
+                        }
+                        if !height_slice.is_empty() {
+                            if let Ok(h) = height_slice.parse::<i32>() {
+                                height = Some(h);
+                                first_segment_is_dimensions = true;
+                                println!("Height updated to {}", h);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // TODO don't use path, piece it out so .tar.gz => tar.gz is the extension
+    // and that the content_type is tar and the content_encoding is gzip
+    let mut extension: Option<String> = None;
+    let mut encoding: Option<String> = None;
+
+    let mut skip_first = 0..raw_path.len();
+    let mut include_full = true;
+    if first_segment_is_dimensions {
+        match raw_path.find('/') {
+            None => {}
+            Some(slash_index) => {
+                skip_first = slash_index + 1..raw_path.len();
+                let slice = &raw_path[slash_index + 1..raw_path.len()];
+                println!("Without path params: {}", slice);
+                include_full = false;
+            }
+        }
+    }
+
+    let mut first_extension = None;
+    let mut second_extension = None;
+
+    match raw_path.rfind('.') {
+        None => {}
+        Some(dot_index) => {
+            let slice = &raw_path[..dot_index];
+            extension = Some(raw_path[dot_index + 1..].to_string());
+            let start = skip_first.start;
+            first_extension = Some(start..dot_index);
+            println!("Without extension: {}", &slice[skip_first.start..]);
+            match slice.rfind('.') {
+                None => {}
+                Some(second_dot_index) => {
+                    second_extension = Some(start..second_dot_index);
+                    encoding = extension.take();
+                    extension = Some(raw_path[second_dot_index + 1..dot_index].to_string());
+                    println!(
+                        "Second without extension: {}",
+                        &raw_path[skip_first.start..second_dot_index]
+                    );
+                }
+            }
+        }
+    }
+
+    println!("Encoding: {:?}, Extension: {:?}", encoding, extension);
+    // TODO convert to content type combo and encoding
+
+    ExistingFileRequestQueryBuilder {
+        raw_path,
+        paths_builder: |raw_path: &String| {
+            let mut result = Vec::with_capacity(3);
+            if skip_first.start > 0 {
+                let slice = &raw_path[skip_first];
+                result.push(slice);
+            }
+
+            match first_extension {
+                None => {}
+                Some(range) => {
+                    let slice = &raw_path[range];
+                    result.push(slice);
+                }
+            }
+            match second_extension {
+                None => {}
+                Some(range) => {
+                    let slice = &raw_path[range];
+                    result.push(slice);
+                }
+            }
+
+            // Raw path is added last
+            if include_full {
+                result.push(&raw_path[..]);
+            }
+
+            println!("Found paths {:?}", result);
+            result
+        },
+        width,
+        height,
+        // extension,
+    }
+    .build()
+}
+
+pub fn search_existing_file_query(
+    conn: &SqliteConnection,
+    query: ExistingFileRequestQuery,
+) -> Result<Option<Object>, String> {
+    find_object_by_parameters(
+        conn,
+        query.borrow_paths(),
+        *query.borrow_width(),
+        *query.borrow_height(),
+        // query.borrow_extension().as_deref(),
+    )
+    .and_then(|opt| match opt {
+        Some(object) => Ok(Some(object)),
+        None => find_object_by_object_path(conn, query.borrow_raw_path()),
+    })
+}

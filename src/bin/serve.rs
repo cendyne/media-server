@@ -13,7 +13,6 @@ use rocket::http::{ContentType, MediaType, Status};
 use rocket::request::{FromRequest, Outcome, Request};
 use rocket::serde::{json::Json, Deserialize, Serialize};
 use rocket::State;
-use media_server::content_type::{content_type_or_from_safe_ext, content_type_to_extension};
 
 use either::Either;
 use std::path::{Path, PathBuf};
