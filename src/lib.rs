@@ -4,6 +4,8 @@ extern crate dotenv;
 
 pub mod models;
 pub mod schema;
+pub mod content_encoding;
+pub mod content_type;
 
 use ct_codecs::{Base64UrlSafeNoPadding, Encoder};
 use diesel::prelude::*;
@@ -13,8 +15,8 @@ use diesel::sqlite::SqliteConnection;
 use dotenv::dotenv;
 use either::Either;
 use ouroboros::self_referencing;
-use phf::{phf_map, phf_set};
-use rocket::http::ContentType;
+
+// use rocket::http::ContentType;
 use rocket::request::Request;
 use std::collections::HashSet;
 use std::fs::create_dir_all;
@@ -28,208 +30,6 @@ use models::{
 
 pub type Pool = r2d2::Pool<ConnectionManager<SqliteConnection>>;
 
-// pub const JXL: ContentType = ContentType::from(MediaType::const_new("image", "jxl", &[]));
-// pub const MP3: ContentType = ContentType::from(MediaType::const_new("audio", "mpeg", &[]));
-// pub const YAML: ContentType = ContentType::from(MediaType::const_new("application", "yaml", &[]));
-// pub const TOML: ContentType = ContentType::from(MediaType::const_new("application", "toml", &[]));
-
-pub const SAFE_EXTS: phf::Set<&'static str> = phf_set! {
-    "7z",
-    "aac",
-    "avif",
-    "bin",
-    "bz",
-    "bz2",
-    "css",
-    "csv",
-    "gif",
-    "gz",
-    "html",
-    "ico",
-    "jar",
-    "jpg",
-    "js",
-    "json",
-    "jxl",
-    "mid",
-    "mp3",
-    "mp4",
-    "ogg",
-    "ogv",
-    "opus",
-    "otf",
-    "pdf",
-    "png",
-    "svg",
-    "tar",
-    "ttf",
-    "tif",
-    "toml",
-    "txt",
-    "weba",
-    "webm",
-    "webp",
-    "woff",
-    "woff2",
-    "yaml",
-    "zip",
-};
-
-pub const EXTENSION_CONTENT_TYPES: phf::Map<&'static str, (&'static str, &'static str)> = phf_map! {
-    "7z" => ("application", "x-7z-compressed"),
-    "aac" => ("audio", "aac"),
-    "avif" => ("image", "avif"),
-    "bin" => ("application", "octet-stream"),
-    "bz" => ("application", "x-bzip"),
-    "bz2" => ("application", "x-bzip2"),
-    "css" => ("text", "css"),
-    "csv" => ("text", "csv"),
-    "gif" => ("image", "gif"),
-    "gz" => ("application", "gzip"),
-    "html" => ("text", "html"),
-    "ico" => ("image", "vnd.microsoft.icon"),
-    "jar" => ("application", "java-archive"),
-    "jpg" => ("image", "jpeg"),
-    "jpeg" => ("image", "jpeg"),
-    "js" => ("text", "javascript"),
-    "json" => ("application", "json"),
-    "jxl" => ("image", "jxl"),
-    "mid" => ("audio", "midi"),
-    "mp3" => ("audio", "mpeg"),
-    "mp4" => ("video", "mp4"),
-    "oga" => ("audio", "ogg"),
-    "ogg" => ("audio", "ogg"),
-    "ogv" => ("video", "ogg"),
-    "opus" => ("audio", "opus"),
-    "otf" => ("font", "otf"),
-    "pdf" => ("application", "pdf"),
-    "png" => ("image", "png"),
-    "svg" => ("image", "svg+xml"),
-    "tar" => ("application", "x-tar"),
-    "ttf" => ("font", "ttf"),
-    "tif" => ("image", "tiff"),
-    "tiff" => ("image", "tiff"),
-    "toml" => ("application", "toml"),
-    "txt" => ("text", "plain"),
-    "weba" => ("audio", "webm"),
-    "webm" => ("video", "webm"),
-    "webp" => ("image", "webp"),
-    "woff" => ("font", "woff"),
-    "woff2" => ("font", "woff2"),
-    "yaml" => ("application", "yaml"),
-    "zip" => ("application", "zip"),
-};
-
-pub const ALTERNATE_EXTS: phf::Map<&'static str, &'static str> = phf_map! {
-    "jpeg" => "jpg",
-    "htm" => "html",
-    "weba" => "webm",
-    "yml" => "yaml",
-    "tml" => "toml",
-    "midi" => "mid",
-    "tiff" => "tif",
-};
-
-pub const AUDIO_TYPE_EXTENSIONS: phf::Map<&'static str, &'static str> = phf_map! {
-    "mpeg" => "mp3",
-    "webm" => "weba",
-    "aac" => "aac",
-    "ogg" => "ogg",
-    "opus" => "opus",
-    "midi" => "mid",
-    "wav" => "wav",
-};
-
-pub const IMAGE_TYPE_EXTENSIONS: phf::Map<&'static str, &'static str> = phf_map! {
-    "jxl" => "jxl",
-    "tiff" => "tif",
-    "jpeg" => "jpg",
-    "gif" => "gif",
-    "avif" => "avif",
-    "png" => "png",
-    "svg" => "svg",
-    "svg+xml" => "svg",
-    "webp" => "webp",
-    "bmp" => "bmp",
-};
-
-pub const VIDEO_TYPE_EXTENSIONS: phf::Map<&'static str, &'static str> = phf_map! {
-    "webm" => "webm",
-    "mp4" => "mp4",
-    "ogg" => "ogv",
-};
-
-pub const APPLICATION_TYPE_EXTENSIONS: phf::Map<&'static str, &'static str> = phf_map! {
-    "pdf" => "pdf",
-    "json" => "json",
-    "yaml" => "yaml",
-    "toml" => "toml",
-    "x-tar" => "tar",
-    "x-bzip" => "bz",
-    "x-bzip2" => "bz2",
-    "xml" => "xml",
-    "zip" => "zip",
-    "x-7z-compressed" => "7z",
-    "octet-stream" => "bin",
-    "gzip" => "gz",
-    "java-archive" => "jar",
-    "x-sh" => "sh"
-};
-
-pub const TEXT_TYPE_EXTENSIONS: phf::Map<&'static str, &'static str> = phf_map! {
-    "plain" => "txt",
-    "html" => "html",
-    "css" => "css",
-    "csv" => "csv",
-    "javascript" => "js",
-};
-
-pub const FONT_TYPE_EXTENSIONS: phf::Map<&'static str, &'static str> = phf_map! {
-    "otf" => "otf",
-    "ttf" => "ttf",
-    "woff" => "woff",
-    "woff2" => "woff2",
-};
-
-pub fn content_type_to_extension<'a>(
-    content_type: &ContentType,
-    user_ext: &str,
-) -> Result<&'a str, String> {
-    let top = content_type
-        .media_type()
-        .top()
-        .as_str()
-        .to_string()
-        .to_lowercase();
-    let sub = content_type
-        .media_type()
-        .sub()
-        .as_str()
-        .to_string()
-        .to_lowercase();
-    let found = match &top[..] {
-        "image" => IMAGE_TYPE_EXTENSIONS.get(&sub),
-        "audio" => AUDIO_TYPE_EXTENSIONS.get(&sub),
-        "video" => VIDEO_TYPE_EXTENSIONS.get(&sub),
-        "application" => APPLICATION_TYPE_EXTENSIONS.get(&sub),
-        "text" => TEXT_TYPE_EXTENSIONS.get(&sub),
-        "font" => FONT_TYPE_EXTENSIONS.get(&sub),
-        _ => None,
-    };
-
-    let ext = if let Some(e) = found {
-        e
-    } else {
-        match SAFE_EXTS.get_key(user_ext) {
-            Some(e) => e,
-            None => match ALTERNATE_EXTS.get(user_ext) {
-                Some(e) => e,
-                None => "bin",
-            },
-        }
-    };
-    Ok(ext)
-}
 
 no_arg_sql_function!(last_insert_rowid, sql_types::Integer);
 

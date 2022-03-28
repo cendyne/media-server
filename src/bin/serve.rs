@@ -13,6 +13,7 @@ use rocket::http::{ContentType, MediaType, Status};
 use rocket::request::{FromRequest, Outcome, Request};
 use rocket::serde::{json::Json, Deserialize, Serialize};
 use rocket::State;
+use media_server::content_type::{content_type_or_from_safe_ext, content_type_to_extension};
 
 use either::Either;
 use std::path::{Path, PathBuf};
@@ -81,16 +82,7 @@ async fn upload_object(
     // should the content type be seen as binary
     let content_type = file.content_type().map_or_else(
         || ContentType::Binary,
-        |ct| {
-            if ct == &ContentType::Binary {
-                match EXTENSION_CONTENT_TYPES.get(user_ext) {
-                    Some((top, sub)) => ContentType::from(MediaType::const_new(top, sub, &[])),
-                    None => ContentType::Binary,
-                }
-            } else {
-                ct.clone()
-            }
-        },
+        |ct| content_type_or_from_safe_ext(ct, user_ext),
     );
     let content_type_str = format!(
         "{}/{}",
