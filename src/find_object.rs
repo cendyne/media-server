@@ -4,7 +4,9 @@ use crate::virtual_object::{
 };
 use diesel::sqlite::SqliteConnection;
 
+use crate::content_encoding::ContentEncodingValue;
 use crate::models::Object;
+use crate::parsing::grab_basename;
 
 use ouroboros::self_referencing;
 
@@ -16,9 +18,14 @@ pub fn find_object_by_parameters(
     paths: &[&str],
     width: Option<i32>,
     height: Option<i32>,
-    // content_type: Option<(&'static str, &'static str)>,
+    content_type: Option<&str>,
+    content_encoding: Option<ContentEncodingValue>,
 ) -> Result<Option<Object>, String> {
     println!("Looking for virtual object by path {:?}", paths);
+    println!(
+        "With type {:?} and encoding {:?}",
+        content_type, content_encoding
+    );
     // TODO supply extension so it can try the path with and without the extension
     let virtual_object = match find_virtual_object_by_object_paths(conn, paths) {
         Ok(Some(virtual_object)) => virtual_object,
@@ -34,14 +41,22 @@ pub fn find_object_by_parameters(
     // TODO find only related objects that match content type
     // TODO consider content encoding
     let objects = find_related_objects_to_virtual_object(conn, &virtual_object)?;
-    println!("Found objects {:?}", objects);
+    // println!("Found objects {:?}", objects);
     if objects.is_empty() {
         println!("Bailing out early, objects is empty");
         return Ok(None);
     }
-    // TODO switch to content type matching instead of ext
-    // TODO include content encoding
-    let same_extension: Vec<Object> = objects.to_vec();
+    let same_extension: Vec<Object> = objects
+        .into_iter()
+        .filter(|o| match &content_type {
+            None => true,
+            Some(v) => o.content_type == *v,
+        })
+        .filter(|o| match &content_encoding {
+            None => true,
+            Some(v) => ContentEncodingValue::from_database(&o.content_encoding) == *v,
+        })
+        .collect();
     // Bail out early
     if same_extension.is_empty() {
         println!("No matching extension");
@@ -118,7 +133,8 @@ pub struct ExistingFileRequestQuery {
     paths: Vec<&'this str>,
     width: Option<i32>,
     height: Option<i32>,
-    // extension: Option<String>,
+    content_type: Option<String>,
+    content_encoding: Option<ContentEncodingValue>,
 }
 
 pub fn parse_existing_file_request(req: &Request<'_>) -> ExistingFileRequestQuery {
@@ -173,8 +189,6 @@ pub fn parse_existing_file_request(req: &Request<'_>) -> ExistingFileRequestQuer
     }
     // TODO don't use path, piece it out so .tar.gz => tar.gz is the extension
     // and that the content_type is tar and the content_encoding is gzip
-    let mut extension: Option<String> = None;
-    let mut encoding: Option<String> = None;
 
     let mut skip_first = 0..raw_path.len();
     let mut include_full = true;
@@ -190,33 +204,22 @@ pub fn parse_existing_file_request(req: &Request<'_>) -> ExistingFileRequestQuer
         }
     }
 
-    let mut first_extension = None;
-    let mut second_extension = None;
+    let parsed_path = grab_basename(&raw_path);
 
-    match raw_path.rfind('.') {
-        None => {}
-        Some(dot_index) => {
-            let slice = &raw_path[..dot_index];
-            extension = Some(raw_path[dot_index + 1..].to_string());
-            let start = skip_first.start;
-            first_extension = Some(start..dot_index);
-            println!("Without extension: {}", &slice[skip_first.start..]);
-            match slice.rfind('.') {
-                None => {}
-                Some(second_dot_index) => {
-                    second_extension = Some(start..second_dot_index);
-                    encoding = extension.take();
-                    extension = Some(raw_path[second_dot_index + 1..dot_index].to_string());
-                    println!(
-                        "Second without extension: {}",
-                        &raw_path[skip_first.start..second_dot_index]
-                    );
-                }
-            }
-        }
-    }
+    let first_extension = parsed_path
+        .content_type_ext_range
+        .clone()
+        .map(|r| skip_first.start..r.start - 1);
+    let second_extension = parsed_path
+        .content_encoding_ext_range
+        .clone()
+        .map(|r| skip_first.start..r.start - 1);
+    let content_type = parsed_path
+        .find_content_type()
+        .map(|(top, sub)| format!("{}/{}", top, sub));
+    let content_encoding = parsed_path.find_content_encoding();
 
-    println!("Encoding: {:?}, Extension: {:?}", encoding, extension);
+    // println!("Encoding: {:?}, Extension: {:?}", parsed_path.content_encoding_ext_range.map(|r| &raw_path[r]), parsed_path.content_type_ext_range.map(|r| &raw_path[r]));
     // TODO convert to content type combo and encoding
 
     ExistingFileRequestQueryBuilder {
@@ -253,7 +256,8 @@ pub fn parse_existing_file_request(req: &Request<'_>) -> ExistingFileRequestQuer
         },
         width,
         height,
-        // extension,
+        content_type,
+        content_encoding,
     }
     .build()
 }
@@ -267,7 +271,8 @@ pub fn search_existing_file_query(
         query.borrow_paths(),
         *query.borrow_width(),
         *query.borrow_height(),
-        // query.borrow_extension().as_deref(),
+        query.borrow_content_type().as_deref(),
+        query.borrow_content_encoding().clone(),
     )
     .and_then(|opt| match opt {
         Some(object) => Ok(Some(object)),

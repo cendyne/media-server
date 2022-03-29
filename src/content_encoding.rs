@@ -1,5 +1,6 @@
 use rocket::form::FromFormField;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, FromFormField, Clone)]
 #[allow(dead_code)]
@@ -32,25 +33,24 @@ pub enum ContentEncodingValue {
     Default,
 }
 
+impl fmt::Display for ContentEncodingValue {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ContentEncodingValue::Gzip => write!(f, "gzip"),
+            ContentEncodingValue::Compress => write!(f, "compress"),
+            ContentEncodingValue::Deflate => write!(f, "deflate"),
+            ContentEncodingValue::Brotli => write!(f, "br"),
+            ContentEncodingValue::Identity => write!(f, "identity"),
+            ContentEncodingValue::Default => write!(f, "*"),
+        }
+    }
+}
+
 impl ContentEncodingValue {
-    pub fn to_string(&self) -> String {
-        match self {
-            ContentEncodingValue::Gzip => "gzip",
-            ContentEncodingValue::Compress => "compress",
-            ContentEncodingValue::Deflate => "deflate",
-            ContentEncodingValue::Brotli => "br",
-            ContentEncodingValue::Identity => "identity",
-            ContentEncodingValue::Default => "*",
-        }
-        .to_string()
-    }
     pub fn has_fs_extension(&self) -> bool {
-        match self {
-            ContentEncodingValue::Identity => false,
-            ContentEncodingValue::Default => false,
-            _ => true
-        }
+        !matches!(self, ContentEncodingValue::Identity | ContentEncodingValue::Default)
     }
+
     pub fn fs_extension(&self) -> &'static str {
         match self {
             ContentEncodingValue::Gzip => ".gz",
@@ -58,7 +58,33 @@ impl ContentEncodingValue {
             ContentEncodingValue::Deflate => ".zl",
             ContentEncodingValue::Brotli => ".br",
             ContentEncodingValue::Identity => "",
-            ContentEncodingValue::Default => ""
+            ContentEncodingValue::Default => "",
+        }
+    }
+    pub fn from_extension(ext: &str) -> ContentEncodingValue {
+        match ext {
+            "" => ContentEncodingValue::Identity,
+            "gz" => ContentEncodingValue::Gzip,
+            "z" => ContentEncodingValue::Compress,
+            "zl" => ContentEncodingValue::Deflate,
+            "br" => ContentEncodingValue::Brotli,
+            _ => ContentEncodingValue::Default,
+        }
+    }
+    pub fn from_database(ext: &str) -> ContentEncodingValue {
+        match ext {
+            "id" => ContentEncodingValue::Identity,
+            "identity" => ContentEncodingValue::Identity,
+            "" => ContentEncodingValue::Identity,
+            "gz" => ContentEncodingValue::Gzip,
+            "gzip" => ContentEncodingValue::Gzip,
+            "z" => ContentEncodingValue::Compress,
+            "compress" => ContentEncodingValue::Compress,
+            "zl" => ContentEncodingValue::Deflate,
+            "deflate" => ContentEncodingValue::Deflate,
+            "zip" => ContentEncodingValue::Deflate,
+            "br" => ContentEncodingValue::Brotli,
+            _ => ContentEncodingValue::Default,
         }
     }
 }

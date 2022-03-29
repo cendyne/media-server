@@ -57,7 +57,7 @@ struct UpsertObjectResponse {
 #[put("/object/<input_path..>?<width>&<height>&<enc>&<ext>", data = "<file>")]
 async fn upload_object(
     input_path: PathBuf,
-    mut file: Form<TempFile<'_>>,
+    file: Form<TempFile<'_>>,
     width: Option<i32>,
     height: Option<i32>,
     pool: &State<Pool>,
@@ -68,7 +68,10 @@ async fn upload_object(
     let path = input_path
         .to_str()
         .ok_or_else(|| "Could not parse path for some reason".to_string())?;
-    println!("Input '{}' for {:?} enc: {:?} ext: {:?}", path, file, enc, ext);
+    println!(
+        "Input '{}' for {:?} enc: {:?} ext: {:?}",
+        path, file, enc, ext
+    );
     let mut destination = upload_path()?;
     let user_ext = ext
         .or_else(|| {
@@ -137,9 +140,7 @@ async fn upload_object(
     )?;
     let upserted_object = match upserted_object_rl {
         Either::Left(object) => {
-            file.persist_to(&destination)
-                .await
-                .map_err(|err| format!("{}", err))?;
+            copy_temp(temp_path, &destination)?;
             object
         }
         Either::Right(object) => object,

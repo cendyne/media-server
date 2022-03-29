@@ -22,16 +22,18 @@ While primarily for images it can store other common file types too.
 15. Override extension to content type
 16. Override encoding to content encoding
 17. Handler path supports `r<w>x<h>/` prefixing instead of query params
+18. Parse form file name into content encoding and content type
+19. Add support for responding with content encoding depending on extension
+20. Custom file copy method, Rocket's persist method does not work across devices
 
 ## Next things to do
 
 ### Content Types and Encoding
-* Parse form file name into content encoding and content type
-* Determine content type and encoding by extension (e.g. `.js.gz => text/javascript gzip`)
+
+* Filter content type in database query
+* Determine content type and encoding by extension during upload (e.g. `.js.gz => text/javascript gzip`)
     > https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Encoding
     > https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept-Encoding
-* Filter content type in database query
-* Add support for responding with content encoding depending on extension
 
 ### Virtual Object Enhancements
 * Virtual Object can list prioritized content type in case user content type is not specified
