@@ -7,7 +7,6 @@ use self::models::*;
 use media_server::*;
 use rocket::form::Form;
 use rocket::fs::FileServer;
-use rocket::fs::NamedFile;
 use rocket::fs::TempFile;
 use rocket::http::{ContentType, MediaType, Status};
 use rocket::request::{FromRequest, Outcome, Request};
@@ -223,14 +222,9 @@ async fn robots_txt() -> &'static str {
 }
 
 #[get("/<_..>")]
-async fn find_object(existing_file: ExistingFile) -> Result<NamedFile, String> {
+async fn find_object(existing_file: ExistingFile) -> Result<FileContent, String> {
     println!("Found existing file! {:?}", existing_file);
-    let path = upload_path()?.join(existing_file.0.file_path);
-    // TODO cache headers, will require I use a different type which implements Responder
-    // see source of NamedFile
-    NamedFile::open(path)
-        .await
-        .map_err(|err| format!("{}", err))
+    FileContent::load(existing_file.0).await
 }
 
 #[launch]

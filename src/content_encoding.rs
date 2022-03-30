@@ -48,7 +48,10 @@ impl fmt::Display for ContentEncodingValue {
 
 impl ContentEncodingValue {
     pub fn has_fs_extension(&self) -> bool {
-        !matches!(self, ContentEncodingValue::Identity | ContentEncodingValue::Default)
+        !matches!(
+            self,
+            ContentEncodingValue::Identity | ContentEncodingValue::Default
+        )
     }
 
     pub fn fs_extension(&self) -> &'static str {

@@ -25,6 +25,7 @@ While primarily for images it can store other common file types too.
 18. Parse form file name into content encoding and content type
 19. Add support for responding with content encoding depending on extension
 20. Custom file copy method, Rocket's persist method does not work across devices
+21. Custom NamedFile response (FileContent)
 
 ## Next things to do
 
@@ -47,10 +48,10 @@ While primarily for images it can store other common file types too.
 * Upsert should update content type if supplied
 
 ### Content Response
-* Custom NamedFile response with custom headers
 * Send headers on objects with custom named file response
 * Store headers on objects
 * Send custom headers on objects
+* Refactor to use a route handler instead of a guard and handler
 
 ### Error Response
 * Custom error type and error response
@@ -60,3 +61,5 @@ While primarily for images it can store other common file types too.
 * Virtual Object tags
 * Virtual Object path prefixes
 
+## Other
+* Use tokio async file for writing data and hashing files
