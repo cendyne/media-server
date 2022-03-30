@@ -7,6 +7,7 @@ pub mod schema;
 
 mod content_encoding;
 mod content_type;
+mod existing_file_handler;
 mod file_content;
 mod find_object;
 mod hash_file;
@@ -17,6 +18,7 @@ mod virtual_object;
 
 pub use content_encoding::ContentEncodingValue;
 pub use content_type::{content_type_or_from_safe_ext, content_type_to_extension};
+pub use existing_file_handler::ExistingFileHandler;
 pub use file_content::FileContent;
 pub use find_object::{
     find_object_by_parameters, parse_existing_file_request, search_existing_file_query,

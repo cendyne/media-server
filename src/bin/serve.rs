@@ -2,14 +2,13 @@
 extern crate rocket;
 extern crate diesel;
 extern crate media_server;
-use self::models::*;
 // use diesel::prelude::*;
 use media_server::*;
 use rocket::form::Form;
 use rocket::fs::FileServer;
 use rocket::fs::TempFile;
-use rocket::http::{ContentType, MediaType, Status};
-use rocket::request::{FromRequest, Outcome, Request};
+use rocket::http::{ContentType, MediaType};
+
 use rocket::serde::{json::Json, Deserialize, Serialize};
 use rocket::State;
 
@@ -180,51 +179,9 @@ async fn upsert_virtual_object(
     Ok("OK".to_string())
 }
 
-#[derive(Debug)]
-struct ExistingFile(Object);
-
-#[rocket::async_trait]
-impl<'r> FromRequest<'r> for ExistingFile {
-    type Error = String;
-    async fn from_request(req: &'r Request<'_>) -> rocket::request::Outcome<Self, Self::Error> {
-        // TODO shorten some how?
-        let pool = match req.guard::<&State<Pool>>().await {
-            Outcome::Success(pool) => pool,
-            Outcome::Failure((status, _)) => {
-                return Outcome::Failure((status, "Could not get database pool".to_string()))
-            }
-            Outcome::Forward(_) => return Outcome::Forward(()),
-        };
-        // TODO shorten some how?
-        let conn = match pool.get().map_err(|e| format!("{}", e)) {
-            Ok(conn) => conn,
-            Err(_) => {
-                return Outcome::Failure((
-                    Status::new(500),
-                    "Could not get a database connection".to_string(),
-                ));
-            }
-        };
-
-        let query = parse_existing_file_request(req);
-
-        // Search for virtual object first
-        match search_existing_file_query(&conn, query) {
-            Ok(Some(object)) => Outcome::Success(ExistingFile(object)),
-            _ => Outcome::Forward(()),
-        }
-    }
-}
-
 #[get("/robots.txt")]
 async fn robots_txt() -> &'static str {
     "User-agent: *\nDisallow: /"
-}
-
-#[get("/<_..>")]
-async fn find_object(existing_file: ExistingFile) -> Result<FileContent, String> {
-    println!("Found existing file! {:?}", existing_file);
-    FileContent::load(existing_file.0).await
 }
 
 #[launch]
@@ -243,9 +200,9 @@ fn rocket() -> _ {
                 robots_txt,
                 upload_object,
                 upsert_virtual_object,
-                find_object
             ],
         )
+        .mount("/", ExistingFileHandler())
         .mount("/f", FileServer::from(static_path.as_path()))
         .attach(rocket::shield::Shield::new())
 }

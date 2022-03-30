@@ -36,6 +36,10 @@ impl<'r> Responder<'r, 'static> for FileContent {
                 response.set_header(Header::new("Content-Encoding", v.to_string()));
             }
         }
+        response.set_header(Header::new("ETag", format!("\"{}\"", self.object.content_hash)));
+        // TODO last modified with gmt date
+        // etc.
+        response.set_header(Header::new("Cache-Control", "public, max-age=86400, stale-while-revalidate=3600"));
 
         Ok(response)
     }

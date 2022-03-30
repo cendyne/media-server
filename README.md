@@ -26,6 +26,7 @@ While primarily for images it can store other common file types too.
 19. Add support for responding with content encoding depending on extension
 20. Custom file copy method, Rocket's persist method does not work across devices
 21. Custom NamedFile response (FileContent)
+22. Refactor to use a route handler instead of a guard and handler
 
 ## Next things to do
 
@@ -51,7 +52,11 @@ While primarily for images it can store other common file types too.
 * Send headers on objects with custom named file response
 * Store headers on objects
 * Send custom headers on objects
-* Refactor to use a route handler instead of a guard and handler
+* Last Modified
+* Vary?
+* CORS
+* Content type no sniff
+* age
 
 ### Error Response
 * Custom error type and error response
