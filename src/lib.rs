@@ -31,8 +31,9 @@ pub use object::{
 pub use parsing::{grab_basename, Basename};
 pub use sqlite::{connect_pool, Pool};
 pub use virtual_object::{
-    find_or_create_virtual_object_by_object_path, find_related_objects_to_virtual_object,
-    find_virtual_object_by_object_path, replace_virtual_object_relations, add_virtual_object_relations,
+    add_virtual_object_relations, find_or_create_virtual_object_by_object_path,
+    find_related_objects_to_virtual_object, find_virtual_object_by_object_path,
+    replace_virtual_object_relations,
 };
 
 use std::fs::create_dir_all;

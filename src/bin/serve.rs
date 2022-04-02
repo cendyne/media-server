@@ -128,12 +128,12 @@ async fn upload_object(
     };
 
     // Create virtual object for content hash
-    let virtual_object = find_or_create_virtual_object_by_object_path(&conn, &virtual_object_path)?;
+    let virtual_object = find_or_create_virtual_object_by_object_path(&conn, virtual_object_path)?;
     let objects = vec![upserted_object.clone()];
     replace_virtual_object_relations(&conn, &objects, &virtual_object)?;
 
     if !path.is_empty() {
-        let virtual_object = find_or_create_virtual_object_by_object_path(&conn, &path)?;
+        let virtual_object = find_or_create_virtual_object_by_object_path(&conn, path)?;
         add_virtual_object_relations(&conn, &objects, &virtual_object)?;
     }
 

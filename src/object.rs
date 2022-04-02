@@ -25,6 +25,8 @@ pub fn update_object(
     id: i32,
     width: Option<i32>,
     height: Option<i32>,
+    content_type: &str,
+    content_encoding: ContentEncodingValue,
     headers: Option<String>,
 ) -> Result<(), String> {
     use crate::schema::object;
@@ -38,6 +40,8 @@ pub fn update_object(
             modified: now as i64,
             width,
             height,
+            content_type: content_type.to_string(),
+            content_encoding: content_encoding.to_string(),
             content_headers: headers,
         })
         .filter(object::id.eq(&id))
@@ -89,9 +93,15 @@ pub fn upsert_object(
     match existing_object {
         Some(obj) => {
             // TODO headers
-            // TODO use content encoding (may change)
-            // TODO use content type (may change)
-            update_object(conn, obj.id, command.width, command.height, None)?;
+            update_object(
+                conn,
+                obj.id,
+                command.width,
+                command.height,
+                command.content_type,
+                command.content_encoding,
+                None,
+            )?;
         }
         None => {
             // only need to save it a first time

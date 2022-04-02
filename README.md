@@ -31,6 +31,8 @@ While primarily for images it can store other common file types too.
 24. No longer rely upon public path on object
 24. Create virtual object for content hash
 25. Create virtual object for object if path is set
+26. Upsert should update content encoding
+27. Upsert should update content type
 
 ## Next things to do
 
@@ -56,9 +58,8 @@ While primarily for images it can store other common file types too.
 * Use transaction around inserts with last insert id
 
 ### Object enhancements
-* Upsert should update content encoding if supplied
-* Upsert should update content type if supplied
 * Use transaction around persisting file
+* Insert / Update custom headers
 
 ### Content Response
 * Send headers on objects with custom named file response

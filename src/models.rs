@@ -39,6 +39,8 @@ pub struct UpdateObject {
     pub modified: i64,
     pub width: Option<i32>,
     pub height: Option<i32>,
+    pub content_type: String,
+    pub content_encoding: String,
     pub content_headers: Option<String>,
 }
 
