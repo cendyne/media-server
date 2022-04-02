@@ -1,4 +1,3 @@
-use crate::object::find_object_by_object_path;
 use crate::virtual_object::{
     find_related_objects_to_virtual_object, find_virtual_object_by_object_paths,
 };
@@ -274,8 +273,4 @@ pub fn search_existing_file_query(
         query.borrow_content_type().as_deref(),
         query.borrow_content_encoding().clone(),
     )
-    .and_then(|opt| match opt {
-        Some(object) => Ok(Some(object)),
-        None => find_object_by_object_path(conn, query.borrow_raw_path()),
-    })
 }

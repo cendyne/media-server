@@ -25,7 +25,7 @@ pub use find_object::{
 };
 pub use hash_file::hash_file;
 pub use object::{
-    create_object, find_object_by_hash, find_object_by_object_path, update_object, upsert_object,
+    create_object, find_object_by_file_path, find_object_by_hash, update_object, upsert_object,
     UpsertObjectCommand,
 };
 pub use parsing::{grab_basename, Basename};

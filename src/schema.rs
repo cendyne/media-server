@@ -5,7 +5,6 @@ table! {
         content_type -> Text,
         content_encoding -> Text,
         length -> BigInt,
-        object_path -> Text,
         file_path -> Text,
         created -> BigInt,
         modified -> BigInt,

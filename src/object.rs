@@ -57,14 +57,13 @@ pub fn find_object_by_hash(conn: &SqliteConnection, hash: &str) -> Result<Option
     Ok(result)
 }
 
-pub fn find_object_by_object_path(
+pub fn find_object_by_file_path(
     conn: &SqliteConnection,
     path: &str,
 ) -> Result<Option<Object>, String> {
     use crate::schema::object::dsl::*;
     let result = object
-        .filter(object_path.eq(path))
-        .or_filter(file_path.eq(path))
+        .filter(file_path.eq(path))
         .first(conn)
         .optional()
         .map_err(|err| format!("{}", err))?;
@@ -76,7 +75,6 @@ pub struct UpsertObjectCommand<'a> {
     pub height: Option<i32>,
     pub content_type: &'a str,
     pub length: i64,
-    pub object_path: &'a str,
     pub file_path: &'a str,
     pub content_hash: &'a str,
     pub content_encoding: ContentEncodingValue,
@@ -107,7 +105,6 @@ pub fn upsert_object(
                 content_type: command.content_type.to_string(),
                 content_encoding: command.content_encoding.to_string(),
                 length: command.length,
-                object_path: command.object_path.to_string(),
                 file_path: command.file_path.to_string(),
                 created: now,
                 modified: now,

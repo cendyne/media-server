@@ -28,6 +28,7 @@ While primarily for images it can store other common file types too.
 21. Custom NamedFile response (FileContent)
 22. Refactor to use a route handler instead of a guard and handler
 23. Virtual Object info endpoint
+24. No longer rely upon public path on object
 
 ## Next things to do
 
@@ -53,8 +54,7 @@ While primarily for images it can store other common file types too.
 * Use transaction around inserts with last insert id
 
 ### Object enhancements
-* Create virtual object for object if path is set
-* No longer rely upon public path on object
+-> * Create virtual object for object if path is set
 * Upsert should update content encoding if supplied
 * Upsert should update content type if supplied
 * Use transaction around persisting file

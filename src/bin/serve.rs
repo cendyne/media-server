@@ -103,7 +103,6 @@ async fn upload_object(
     // Build internal file path
     let file_path = format!("{}.{}", &content_hash[..10], fs_ext);
     destination.push(&file_path);
-    let object_path = if path.is_empty() { &file_path } else { path };
 
     let length = file.len() as i64;
 
@@ -115,7 +114,6 @@ async fn upload_object(
             height,
             content_type: &content_type_str,
             length,
-            object_path,
             file_path: &file_path,
             content_encoding: encoding,
         },
@@ -127,6 +125,8 @@ async fn upload_object(
         }
         Either::Right(object) => object,
     };
+
+    // TODO create virtual object
 
     Ok(Json(models::UpsertObjectResponse {
         path: upserted_object.file_path,
@@ -153,7 +153,7 @@ async fn upsert_virtual_object(
     // This is technically an N query, but N < 20
     // can reduce with map, and_then, collect, ok_or_else
     for object in &body.objects {
-        match find_object_by_object_path(&conn, &object.path)? {
+        match find_object_by_file_path(&conn, &object.path)? {
             None => return Err(format!("Could not find object by path {}", object.path)),
             Some(ob) => objects.push(ob),
         }
