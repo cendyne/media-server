@@ -27,11 +27,21 @@ While primarily for images it can store other common file types too.
 20. Custom file copy method, Rocket's persist method does not work across devices
 21. Custom NamedFile response (FileContent)
 22. Refactor to use a route handler instead of a guard and handler
+23. Virtual Object info endpoint
 
 ## Next things to do
 
-### Content Types and Encoding
+### Error Response
+* Custom error type and error response
 
+## Other
+* Use tokio async file for writing data and hashing files
+
+### Meta Data
+* Virtual Object tags
+* Virtual Object path prefixes
+
+### Content Types and Encoding
 * Filter content type in database query
 * Determine content type and encoding by extension during upload (e.g. `.js.gz => text/javascript gzip`)
     > https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Encoding
@@ -47,6 +57,7 @@ While primarily for images it can store other common file types too.
 * No longer rely upon public path on object
 * Upsert should update content encoding if supplied
 * Upsert should update content type if supplied
+* Use transaction around persisting file
 
 ### Content Response
 * Send headers on objects with custom named file response
@@ -57,14 +68,6 @@ While primarily for images it can store other common file types too.
 * CORS
 * Content type no sniff
 * age
-
-### Error Response
-* Custom error type and error response
-
-### Meta Data
-* Virtual Object info endpoint
-* Virtual Object tags
-* Virtual Object path prefixes
-
-## Other
-* Use tokio async file for writing data and hashing files
+* If Modified Since
+* If None Match
+* Support content range requests

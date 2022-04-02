@@ -9,7 +9,7 @@ use rocket::fs::FileServer;
 use rocket::fs::TempFile;
 use rocket::http::{ContentType, MediaType};
 
-use rocket::serde::{json::Json, Deserialize, Serialize};
+use rocket::serde::json::Json;
 use rocket::State;
 
 use either::Either;
@@ -18,6 +18,11 @@ use std::path::{Path, PathBuf};
 #[get("/")]
 fn index() -> &'static str {
     "Hello, world!"
+}
+
+#[get("/robots.txt")]
+async fn robots_txt() -> &'static str {
+    "User-agent: *\nDisallow: /"
 }
 
 const TINY_GIF: [u8; 37] = [
@@ -31,27 +36,6 @@ fn favicon() -> (ContentType, &'static [u8]) {
     (ContentType::from(MediaType::GIF), &TINY_GIF)
 }
 
-#[derive(Deserialize, Debug)]
-struct UpsertVirtualObjectRequestObjectReference {
-    path: String,
-}
-
-#[derive(Deserialize, Debug)]
-struct UpsertVirtualObjectRequest {
-    objects: Vec<UpsertVirtualObjectRequestObjectReference>,
-}
-
-#[derive(Serialize, Debug)]
-struct UpsertObjectResponse {
-    path: String,
-    unique_path: String,
-    content_type: String,
-    content_encoding: String,
-    file_size: i64,
-    width: Option<i32>,
-    height: Option<i32>,
-}
-
 #[put("/object/<input_path..>?<width>&<height>&<enc>&<ext>", data = "<file>")]
 async fn upload_object(
     input_path: PathBuf,
@@ -61,7 +45,7 @@ async fn upload_object(
     pool: &State<Pool>,
     enc: Option<ContentEncodingValue>,
     ext: Option<&str>,
-) -> Result<Json<UpsertObjectResponse>, String> {
+) -> Result<Json<models::UpsertObjectResponse>, String> {
     let conn = pool.get().map_err(|e| format!("{}", e))?;
     let path = input_path
         .to_str()
@@ -144,12 +128,11 @@ async fn upload_object(
         Either::Right(object) => object,
     };
 
-    Ok(Json(UpsertObjectResponse {
-        path: upserted_object.object_path,
-        unique_path: upserted_object.file_path,
+    Ok(Json(models::UpsertObjectResponse {
+        path: upserted_object.file_path,
         content_type: upserted_object.content_type,
         content_encoding: upserted_object.content_encoding,
-        file_size: upserted_object.length,
+        content_length: upserted_object.length,
         width: upserted_object.width,
         height: upserted_object.height,
     }))
@@ -158,7 +141,7 @@ async fn upload_object(
 #[put("/virtual-object/<input_path..>", data = "<body>")]
 async fn upsert_virtual_object(
     input_path: PathBuf,
-    body: Json<UpsertVirtualObjectRequest>,
+    body: Json<models::UpsertVirtualObjectRequest>,
     pool: &State<Pool>,
 ) -> Result<String, String> {
     let path = input_path
@@ -179,9 +162,39 @@ async fn upsert_virtual_object(
     Ok("OK".to_string())
 }
 
-#[get("/robots.txt")]
-async fn robots_txt() -> &'static str {
-    "User-agent: *\nDisallow: /"
+#[get("/virtual-object/<input_path..>")]
+async fn get_virtual_object(
+    input_path: PathBuf,
+    pool: &State<Pool>,
+) -> Result<Json<models::VirtualObjectInfoResponse>, String> {
+    let path = input_path
+        .to_str()
+        .ok_or_else(|| "Could not parse path for some reason".to_string())?;
+    println!("Get vobj {}", path);
+    let conn = pool.get().map_err(|e| format!("{}", e))?;
+    let virtual_object = find_virtual_object_by_object_path(&conn, path)?;
+    match virtual_object {
+        None => Err("not found".to_string()),
+        Some(vobj) => {
+            println!("Found vobj {:?}", vobj);
+            let objects = find_related_objects_to_virtual_object(&conn, &vobj)?;
+            println!("Found objects: {:?}", objects);
+            Ok(Json(models::VirtualObjectInfoResponse {
+                path: vobj.object_path,
+                objects: objects
+                    .into_iter()
+                    .map(|o| models::VirtualObjectInfoResponseObject {
+                        path: o.file_path,
+                        content_type: o.content_type,
+                        content_encoding: ContentEncodingValue::from_database(&o.content_encoding),
+                        content_length: o.length,
+                        width: o.width,
+                        height: o.height,
+                    })
+                    .collect(),
+            }))
+        }
+    }
 }
 
 #[launch]
@@ -200,6 +213,7 @@ fn rocket() -> _ {
                 robots_txt,
                 upload_object,
                 upsert_virtual_object,
+                get_virtual_object,
             ],
         )
         .mount("/", ExistingFileHandler())
