@@ -102,6 +102,7 @@ async fn upload_object(
 
     // Build internal file path
     let file_path = format!("{}.{}", &content_hash[..10], fs_ext);
+    let virtual_object_path = &content_hash[..10];
     destination.push(&file_path);
 
     let length = file.len() as i64;
@@ -126,7 +127,15 @@ async fn upload_object(
         Either::Right(object) => object,
     };
 
-    // TODO create virtual object
+    // Create virtual object for content hash
+    let virtual_object = find_or_create_virtual_object_by_object_path(&conn, &virtual_object_path)?;
+    let objects = vec![upserted_object.clone()];
+    replace_virtual_object_relations(&conn, &objects, &virtual_object)?;
+
+    if !path.is_empty() {
+        let virtual_object = find_or_create_virtual_object_by_object_path(&conn, &path)?;
+        add_virtual_object_relations(&conn, &objects, &virtual_object)?;
+    }
 
     Ok(Json(models::UpsertObjectResponse {
         path: upserted_object.file_path,
