@@ -98,7 +98,7 @@ async fn upload_object(
         .path()
         .ok_or_else(|| "File upload is unsupported".to_string())?;
     // Read temp file and generate a content hash (will be used as etag too)
-    let content_hash = hash_file(temp_path)?;
+    let content_hash = hash_file(temp_path).await?;
 
     // Build internal file path
     let file_path = format!("{}.{}", &content_hash[..10], fs_ext);
@@ -121,7 +121,7 @@ async fn upload_object(
     )?;
     let upserted_object = match upserted_object_rl {
         Either::Left(object) => {
-            copy_temp(temp_path, &destination)?;
+            copy_temp(temp_path, &destination).await?;
             object
         }
         Either::Right(object) => object,

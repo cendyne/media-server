@@ -33,6 +33,7 @@ While primarily for images it can store other common file types too.
 25. Create virtual object for object if path is set
 26. Upsert should update content encoding
 27. Upsert should update content type
+28. Use tokio async file for writing data and hashing files
 
 ## Next things to do
 
@@ -40,7 +41,7 @@ While primarily for images it can store other common file types too.
 * Custom error type and error response
 
 ## Other
-* Use tokio async file for writing data and hashing files
+* Add HMAC key env for hashing content
 
 ### Meta Data
 * Virtual Object tags
