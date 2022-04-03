@@ -38,39 +38,45 @@ While primarily for images it can store other common file types too.
 ## Next things to do
 
 ### Error Response
-* Custom error type and error response
+* Custom error type and error response (Soundness)
 
 ## Other
-* Add HMAC key env for hashing content
+* Add HMAC key env for hashing content (Soundness)
 
 ### Meta Data
-* Virtual Object tags
-* Virtual Object path prefixes
+* Virtual Object tags (G2)
+* Virtual Object path prefixes (G2)
 
 ### Content Types and Encoding
-* Filter content type in database query
-* Determine content type and encoding by extension during upload (e.g. `.js.gz => text/javascript gzip`)
+* Look for exact match in db before iterating over all
+* Filter content type in database query (Performance)
+* Determine content type and encoding by extension during upload (e.g. `.js.gz => text/javascript gzip`) (G1)
     > https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Encoding
     > https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept-Encoding
 
 ### Virtual Object Enhancements
-* Virtual Object can list prioritized content type in case user content type is not specified
-* Better virtual object choice by resolution
-* Use transaction around inserts with last insert id
+* Virtual Object can list prioritized content type in case user content type is not specified (G1, G2)
+* Better virtual object choice by resolution (G1, G2)
+* Use transaction around inserts with last insert id (Soundness)
 
 ### Object enhancements
-* Use transaction around persisting file
-* Insert / Update custom headers
+* Use transaction around persisting file (Soundness)
+* Insert / Update custom headers (No Goal Alignment)
 
 ### Content Response
-* Send headers on objects with custom named file response
-* Store headers on objects
-* Send custom headers on objects
-* Last Modified
-* Vary?
-* CORS
-* Content type no sniff
-* age
-* If Modified Since
-* If None Match
-* Support content range requests
+* Send headers on objects with custom named file response (No Goal Alignment)
+* Store headers on objects (No Goal Alignment)
+* Send custom headers on objects (No Goal Alignment)
+* Last Modified (G1)
+* Vary? (G1)
+* CORS (G1)
+* Content type no sniff (G1)
+* age (G1)
+* If Modified Since (G1)
+* If None Match (G1)
+* Support content range requests (G1)
+* Plan Dynamic resizing and format conversions (G3)
+
+# Cryptography
+* Plan signed urls (G4)
+
