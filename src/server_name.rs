@@ -1,6 +1,6 @@
-use rocket::{Request, Response};
-use rocket::http::Header;
 use rocket::fairing::{Fairing, Info, Kind};
+use rocket::http::Header;
+use rocket::{Request, Response};
 
 pub struct ServerName(&'static str);
 
@@ -15,7 +15,7 @@ impl Fairing for ServerName {
     fn info(&self) -> Info {
         Info {
             name: "Replaces server header",
-            kind: Kind::Response
+            kind: Kind::Response,
         }
     }
 

@@ -1,11 +1,18 @@
 use bytes::BytesMut;
 use ct_codecs::{Base64UrlSafeNoPadding, Decoder, Encoder};
+use once_cell::sync::OnceCell;
 use std::fs::create_dir_all;
 use std::path::{Path, PathBuf};
 use tokio::{
     fs::File,
     io::{AsyncReadExt, AsyncWriteExt},
 };
+
+struct ContentHMACKey {
+    key: [u8; blake3::KEY_LEN],
+}
+
+static CONTENT_HMAC_KEY: OnceCell<ContentHMACKey> = OnceCell::new();
 
 pub fn hash_base64_url_safe_no_padding(b64: &str) -> Result<String, String> {
     let input_bytes =
@@ -19,13 +26,30 @@ pub fn hash_base64_url_safe_no_padding(b64: &str) -> Result<String, String> {
     Ok(content_hash)
 }
 
+fn load_content_hmac_key() -> Result<ContentHMACKey, String> {
+    let input = std::env::var("CONTENT_HMAC_KEY").map_err(|e| format!("{}", e))?;
+    if input.len() == 64 {
+        let decoded = hex::decode(input).map_err(|e| format!("{}", e))?;
+        let mut key: [u8; blake3::KEY_LEN] = [0; blake3::KEY_LEN];
+        key.copy_from_slice(&decoded[..32]);
+        println!("Loaded CONTENT_HMAC_KEY");
+        Ok(ContentHMACKey { key })
+    } else {
+        // It must be hashed
+        println!("Input CONTENT_HMAC_KEY is being hashed, this is not recommended, it should be a 32 byte sequence encoded as 64 hex characters");
+        let mut hasher = blake3::Hasher::new();
+        hasher.update(input.as_bytes());
+        let hash = hasher.finalize();
+        let key = *hash.as_bytes();
+        Ok(ContentHMACKey { key })
+    }
+}
+
 pub async fn hash_file(path: &Path) -> Result<String, String> {
     let mut open_file = File::open(path).await.map_err(|err| format!("{:?}", err))?;
     let mut buffer = BytesMut::with_capacity(128);
-    let mut key: [u8; blake3::KEY_LEN] = [0; blake3::KEY_LEN];
-    let keystr = "todo key here".as_bytes();
-    key[..keystr.len()].copy_from_slice(keystr);
-    let mut hasher = blake3::Hasher::new_keyed(&key);
+    let key_wrapper = CONTENT_HMAC_KEY.get_or_try_init(load_content_hmac_key)?;
+    let mut hasher = blake3::Hasher::new_keyed(&key_wrapper.key);
     let mut read_bytes = open_file
         .read_buf(&mut buffer)
         .await
