@@ -15,6 +15,7 @@ mod object;
 mod parsing;
 mod server_name;
 mod sqlite;
+mod transformations;
 mod virtual_object;
 
 pub use content_encoding::ContentEncodingValue;

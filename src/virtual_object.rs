@@ -67,10 +67,10 @@ pub fn find_or_create_virtual_object_by_object_path(
             // feature returning_clauses_for_sqlite_3_35 has not been released yet
             conn.transaction::<VirtualObject, diesel::result::Error, _>(|| {
                 let result = diesel::insert_into(virtual_object::table)
-                .values(NewVirtualObject {
-                    object_path: path.to_string(),
-                })
-                .execute(conn)?;
+                    .values(NewVirtualObject {
+                        object_path: path.to_string(),
+                    })
+                    .execute(conn)?;
                 if result > 0 {
                     use crate::schema::virtual_object::dsl::*;
                     let last_id = diesel::select(last_insert_rowid)
@@ -84,9 +84,13 @@ pub fn find_or_create_virtual_object_by_object_path(
                     Ok(record)
                 } else {
                     let err = VirtualObjectError;
-                    Err(diesel::result::Error::DatabaseError(diesel::result::DatabaseErrorKind::UniqueViolation, Box::new(err)))
+                    Err(diesel::result::Error::DatabaseError(
+                        diesel::result::DatabaseErrorKind::UniqueViolation,
+                        Box::new(err),
+                    ))
                 }
-            }).map_err(|e| format!("{}", e))
+            })
+            .map_err(|e| format!("{}", e))
         }
     }
 }

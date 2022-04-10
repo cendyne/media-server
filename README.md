@@ -44,6 +44,7 @@ While primarily for images it can store other common file types too.
 36. Lazy load content file path from environment variable
 37. Always overwrite uploaded file, do so before database updates
 38. Use transaction around inserts with last insert id
+39. Image transformation chain structure, encoder and decoder
 
 ## Next things to do
 
@@ -103,7 +104,7 @@ While primarily for images it can store other common file types too.
   https://docs.rs/image/0.24.1/image/struct.ImageBuffer.html
   https://docs.rs/image/0.24.1/image/fn.load.html
 * Add default bg color to vobj
-* Add filter chain (json) to object table
+* Add filter chain (text) to object table
 * Add parent / derived object to object table
 * Add parent path to upload function
 * Add client provided filter chain to upload function
@@ -112,12 +113,12 @@ While primarily for images it can store other common file types too.
 * Hash and create new Object (with relationship to vobj)
 * refactor image loading, filters, and saving
 * Async all of it from the request, have loading filters and saving eun on io thread
-* Ingroduce semaphore so async processing does not consume too much memory
+* Introduce semaphore so async processing does not consume too much memory
 * Async identify dimensions of uploaded images and set width and height
 * Add crop filter support
 * Add blur filter support
 * Consider blurhash (no rust encoder exists, c encoder looks relatively fine https://github.com/woltapp/blurhash/blob/master/C/encode.c )
-* Add text overlay support
+* Add text overlay support (this will require an additional few libraries...)
 
 # Cryptography
 * Plan signed urls (G4)
