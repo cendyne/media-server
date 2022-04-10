@@ -107,6 +107,9 @@ async fn upload_object(
 
     let length = file.len() as i64;
 
+    // Always overwrite the file
+    copy_temp(temp_path, &destination).await?;
+
     let upserted_object_rl = upsert_object(
         &conn,
         UpsertObjectCommand {
@@ -119,11 +122,10 @@ async fn upload_object(
             content_encoding: encoding,
         },
     )?;
+
+    // Left is if we have inserted instead of updated
     let upserted_object = match upserted_object_rl {
-        Either::Left(object) => {
-            copy_temp(temp_path, &destination).await?;
-            object
-        }
+        Either::Left(object) => object,
         Either::Right(object) => object,
     };
 

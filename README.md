@@ -42,6 +42,7 @@ While primarily for images it can store other common file types too.
 34. Set custom server header
 35. Add HMAC key env for hashing content
 36. Lazy load content file path from environment variable
+37. Always overwrite uploaded file, do so before database updates
 
 ## Next things to do
 
@@ -65,9 +66,8 @@ While primarily for images it can store other common file types too.
 * Use transaction around inserts with last insert id (Soundness)
 
 ### Object enhancements
-* Allow for overwriting file (Soundness)
 * Insert / Update custom headers (No Goal Alignment)
-* Adjust diesel Object to use json map for headers
+* Adjust diesel Object to use json map for headers (No Goal Alignment)
 
 ### Content Response
 * Actually use accept-encoding header
