@@ -34,6 +34,7 @@ While primarily for images it can store other common file types too.
 26. Upsert should update content encoding
 27. Upsert should update content type
 28. Use tokio async file for writing data and hashing files
+29. Plan Dynamic resizing and format conversions
 
 ## Next things to do
 
@@ -64,18 +65,34 @@ While primarily for images it can store other common file types too.
 * Insert / Update custom headers (No Goal Alignment)
 
 ### Content Response
+* Last Modified (G1) - https://docs.rs/httpdate/1.0.2/httpdate/ https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified
+* Vary (G1) https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Vary
+  * Accept-Encoding
+* Content type no sniff (G1) - x-content-type-options: nosniff on things that are not octet stream
+* age (G1) (set to 0 as this is the origin) https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Age
+* If Modified Since (G1) https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/If-Modified-Since
+  - Note that If-None-Match is present, this header should be supported
+* If None Match (G1) https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/If-None-Match
+* Reduce etag length, obscure internal hash
+* Set custom server header
+* Actually use accept-encoding header
+
+### Content Response Extras
+* Upload zip and it automatically creates objects and so on
+* Dynamic Cache Control (G1)
 * Send headers on objects with custom named file response (No Goal Alignment)
 * Store headers on objects (No Goal Alignment)
+* CORS? (No Goal Alignment) - This is its own project, custom headers would come first
+  - https://developer.mozilla.org/en-US/docs/Glossary/Preflight_request
 * Send custom headers on objects (No Goal Alignment)
-* Last Modified (G1)
-* Vary? (G1)
-* CORS (G1)
-* Content type no sniff (G1)
-* age (G1)
-* If Modified Since (G1)
-* If None Match (G1)
-* Support content range requests (G1)
-* Plan Dynamic resizing and format conversions (G3)
+* Support content range requests (No Goal Alignment)
+  - https://developer.mozilla.org/en-US/docs/Web/HTTP/Range_requests
+  - https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Range
+  - accept-ranges: bytes (the only supported value) https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept-Ranges
+* Support OPTIONS request method (Not necessary for content)
+  - https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/OPTIONS
+  - https://developer.mozilla.org/en-US/docs/Glossary/Preflight_request
+  - Correct implementation may be Method Not Allowed
 
 # Cryptography
 * Plan signed urls (G4)
