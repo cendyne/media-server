@@ -35,6 +35,10 @@ While primarily for images it can store other common file types too.
 27. Upsert should update content type
 28. Use tokio async file for writing data and hashing files
 29. Plan Dynamic resizing and format conversions
+30. Support Header Last-Modified
+31. Support Header x-content-type-options
+32. Support Header Age (0)
+33. Reduce etag length, obscure internal hash
 
 ## Next things to do
 
@@ -66,17 +70,14 @@ While primarily for images it can store other common file types too.
 * Adjust diesel Object to use json map for headers
 
 ### Content Response
-* Last Modified (G1) - https://docs.rs/httpdate/1.0.2/httpdate/ https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified
+* Actually use accept-encoding header
 * Vary (G1) https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Vary
   * Accept-Encoding
-* Content type no sniff (G1) - x-content-type-options: nosniff on things that are not octet stream
-* age (G1) (set to 0 as this is the origin) https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Age
 * If Modified Since (G1) https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/If-Modified-Since
   - Note that If-None-Match is present, this header should be supported
 * If None Match (G1) https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/If-None-Match
-* Reduce etag length, obscure internal hash
 * Set custom server header
-* Actually use accept-encoding header
+
 
 ### Content Response Extras
 * Upload zip and it automatically creates objects and so on

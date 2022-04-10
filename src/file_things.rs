@@ -1,11 +1,23 @@
 use bytes::BytesMut;
-use ct_codecs::{Base64UrlSafeNoPadding, Encoder};
+use ct_codecs::{Base64UrlSafeNoPadding, Decoder, Encoder};
 use std::fs::create_dir_all;
 use std::path::{Path, PathBuf};
 use tokio::{
     fs::File,
     io::{AsyncReadExt, AsyncWriteExt},
 };
+
+pub fn hash_base64_url_safe_no_padding(b64: &str) -> Result<String, String> {
+    let input_bytes =
+        Base64UrlSafeNoPadding::decode_to_vec(b64, None).map_err(|e| format!("{}", e))?;
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(&input_bytes);
+    let hash = hasher.finalize();
+    let hash_bytes = hash.as_bytes();
+    let content_hash =
+        Base64UrlSafeNoPadding::encode_to_string(&hash_bytes).map_err(|e| format!("{}", e))?;
+    Ok(content_hash)
+}
 
 pub async fn hash_file(path: &Path) -> Result<String, String> {
     let mut open_file = File::open(path).await.map_err(|err| format!("{:?}", err))?;
