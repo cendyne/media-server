@@ -63,6 +63,7 @@ While primarily for images it can store other common file types too.
 ### Object enhancements
 * Use transaction around persisting file (Soundness)
 * Insert / Update custom headers (No Goal Alignment)
+* Adjust diesel Object to use json map for headers
 
 ### Content Response
 * Last Modified (G1) - https://docs.rs/httpdate/1.0.2/httpdate/ https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified
@@ -93,6 +94,30 @@ While primarily for images it can store other common file types too.
   - https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/OPTIONS
   - https://developer.mozilla.org/en-US/docs/Glossary/Preflight_request
   - Correct implementation may be Method Not Allowed
+
+### Dynamic Resize (G3)
+* Find Exact resolution match, sort by lossless then lossy, filter by supported content types and content encodings
+* Find Double (or higher) resolution match, sort by ...
+* Find max resolution, sort by ...
+* Load image and get dimensions (inspection)
+  https://docs.rs/image/0.24.1/image/struct.ImageBuffer.html
+  https://docs.rs/image/0.24.1/image/fn.load.html
+* Add default bg color to vobj
+* Add filter chain (json) to object table
+* Add parent / derived object to object table
+* Add parent path to upload function
+* Add client provided filter chain to upload function
+* Apply filter chain function (only resize supported)
+* Save image to temp file with chosen content type
+* Hash and create new Object (with relationship to vobj)
+* refactor image loading, filters, and saving
+* Async all of it from the request, have loading filters and saving eun on io thread
+* Ingroduce semaphore so async processing does not consume too much memory
+* Async identify dimensions of uploaded images and set width and height
+* Add crop filter support
+* Add blur filter support
+* Consider blurhash (no rust encoder exists, c encoder looks relatively fine https://github.com/woltapp/blurhash/blob/master/C/encode.c )
+* Add text overlay support
 
 # Cryptography
 * Plan signed urls (G4)
