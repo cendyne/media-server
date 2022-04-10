@@ -228,4 +228,5 @@ fn rocket() -> _ {
         .mount("/", ExistingFileHandler())
         .mount("/f", FileServer::from(static_path.as_path()))
         .attach(rocket::shield::Shield::new())
+        .attach(ServerName::new("Cendyne Media"))
 }

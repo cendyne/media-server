@@ -15,6 +15,7 @@ mod object;
 mod parsing;
 mod sqlite;
 mod virtual_object;
+mod server_name;
 
 pub use content_encoding::ContentEncodingValue;
 pub use content_type::{content_type_or_from_safe_ext, content_type_to_extension};
@@ -35,3 +36,4 @@ pub use virtual_object::{
     find_related_objects_to_virtual_object, find_virtual_object_by_object_path,
     replace_virtual_object_relations,
 };
+pub use server_name::ServerName;

@@ -39,6 +39,7 @@ While primarily for images it can store other common file types too.
 31. Support Header x-content-type-options
 32. Support Header Age (0)
 33. Reduce etag length, obscure internal hash
+34. Set custom server header
 
 ## Next things to do
 
@@ -65,7 +66,7 @@ While primarily for images it can store other common file types too.
 * Use transaction around inserts with last insert id (Soundness)
 
 ### Object enhancements
-* Use transaction around persisting file (Soundness)
+* Allow for overwriting file (Soundness)
 * Insert / Update custom headers (No Goal Alignment)
 * Adjust diesel Object to use json map for headers
 
@@ -76,7 +77,6 @@ While primarily for images it can store other common file types too.
 * If Modified Since (G1) https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/If-Modified-Since
   - Note that If-None-Match is present, this header should be supported
 * If None Match (G1) https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/If-None-Match
-* Set custom server header
 
 
 ### Content Response Extras
