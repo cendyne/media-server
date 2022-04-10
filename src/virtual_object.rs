@@ -31,6 +31,29 @@ pub fn find_virtual_object_by_object_paths(
     Ok(result)
 }
 
+struct VirtualObjectError;
+
+impl diesel::result::DatabaseErrorInformation for VirtualObjectError {
+    fn message(&self) -> &str {
+        "Virtual Object may have already been inserted, retry"
+    }
+    fn details(&self) -> Option<&str> {
+        None
+    }
+    fn hint(&self) -> Option<&str> {
+        None
+    }
+    fn table_name(&self) -> Option<&str> {
+        Some("virtual_object")
+    }
+    fn column_name(&self) -> Option<&str> {
+        None
+    }
+    fn constraint_name(&self) -> Option<&str> {
+        None
+    }
+}
+
 pub fn find_or_create_virtual_object_by_object_path(
     conn: &SqliteConnection,
     path: &str,
@@ -42,26 +65,28 @@ pub fn find_or_create_virtual_object_by_object_path(
             // cannot use get_result on Sqlite
             // Hint.. newer sqlite has returning..
             // feature returning_clauses_for_sqlite_3_35 has not been released yet
-            let result = diesel::insert_into(virtual_object::table)
+            conn.transaction::<VirtualObject, diesel::result::Error, _>(|| {
+                let result = diesel::insert_into(virtual_object::table)
                 .values(NewVirtualObject {
                     object_path: path.to_string(),
                 })
-                .execute(conn)
-                .map_err(|err| format!("{}", err))?;
-            if result > 0 {
-                use crate::schema::virtual_object::dsl::*;
-                // TODO improve by running in a transaction
-                let last_id = diesel::select(last_insert_rowid)
-                    .get_result::<i32>(conn)
-                    .map_err(|err| format!("{}", err))?;
-                let record = virtual_object
-                    .filter(id.eq(last_id))
-                    .first(conn)
-                    .map_err(|err| format!("{}", err))?;
-                Ok(record)
-            } else {
-                Err("Could not insert".to_string())
-            }
+                .execute(conn)?;
+                if result > 0 {
+                    use crate::schema::virtual_object::dsl::*;
+                    let last_id = diesel::select(last_insert_rowid)
+                        .get_result::<i32>(conn)
+                        .map_err(|_| diesel::result::Error::RollbackTransaction)?;
+                    let record = virtual_object
+                        .filter(id.eq(last_id))
+                        .first(conn)
+                        .map_err(|_| diesel::result::Error::RollbackTransaction)?;
+                    println!("Created new virtual object {}", last_id);
+                    Ok(record)
+                } else {
+                    let err = VirtualObjectError;
+                    Err(diesel::result::Error::DatabaseError(diesel::result::DatabaseErrorKind::UniqueViolation, Box::new(err)))
+                }
+            }).map_err(|e| format!("{}", e))
         }
     }
 }

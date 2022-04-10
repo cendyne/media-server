@@ -43,6 +43,7 @@ While primarily for images it can store other common file types too.
 35. Add HMAC key env for hashing content
 36. Lazy load content file path from environment variable
 37. Always overwrite uploaded file, do so before database updates
+38. Use transaction around inserts with last insert id
 
 ## Next things to do
 
@@ -63,7 +64,6 @@ While primarily for images it can store other common file types too.
 ### Virtual Object Enhancements
 * Virtual Object can list prioritized content type in case user content type is not specified (G1, G2)
 * Better virtual object choice by resolution (G1, G2)
-* Use transaction around inserts with last insert id (Soundness)
 
 ### Object enhancements
 * Insert / Update custom headers (No Goal Alignment)
