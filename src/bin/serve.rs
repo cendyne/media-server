@@ -213,7 +213,6 @@ fn rocket() -> _ {
     let static_path = upload_path().unwrap();
     rocket::build()
         .manage(connection_pool)
-        // make sure find_object is LAST, ALWAYS
         .mount(
             "/",
             routes![

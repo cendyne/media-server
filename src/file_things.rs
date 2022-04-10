@@ -13,6 +13,7 @@ struct ContentHMACKey {
 }
 
 static CONTENT_HMAC_KEY: OnceCell<ContentHMACKey> = OnceCell::new();
+static UPLOAD_PATH: OnceCell<PathBuf> = OnceCell::new();
 
 pub fn hash_base64_url_safe_no_padding(b64: &str) -> Result<String, String> {
     let input_bytes =
@@ -114,9 +115,18 @@ pub async fn copy_temp(from_path: &Path, to_path: &Path) -> Result<(), String> {
 }
 
 pub fn upload_path() -> Result<PathBuf, String> {
-    // TODO cache
-    let path = std::env::var("UPLOAD_PATH").unwrap_or_else(|_| "./files".to_string());
+    UPLOAD_PATH
+        .get_or_try_init(internal_upload_path)
+        .map(|p| p.clone())
+}
+
+fn internal_upload_path() -> Result<PathBuf, String> {
+    let path = std::env::var("UPLOAD_PATH").unwrap_or_else(|_| {
+        println!("Warning UPLOAD_PATH is not set, will use ./files");
+        "./files".to_string()
+    });
     create_dir_all(&path).map_err(|err| format!("{}", err))?;
+    println!("Directory {} exists now", path);
     let absolute_path = Path::new(&path)
         .canonicalize()
         .map_err(|err| format!("{}", err))?;

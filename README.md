@@ -41,14 +41,12 @@ While primarily for images it can store other common file types too.
 33. Reduce etag length, obscure internal hash
 34. Set custom server header
 35. Add HMAC key env for hashing content
+36. Lazy load content file path from environment variable
 
 ## Next things to do
 
 ### Error Response
 * Custom error type and error response (Soundness)
-
-### Other
-* Lazy load content file path
 
 ### Meta Data
 * Virtual Object tags (G2)
