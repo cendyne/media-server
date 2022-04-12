@@ -18,8 +18,12 @@ static UPLOAD_PATH: OnceCell<PathBuf> = OnceCell::new();
 pub fn hash_base64_url_safe_no_padding(b64: &str) -> Result<String, String> {
     let input_bytes =
         Base64UrlSafeNoPadding::decode_to_vec(b64, None).map_err(|e| format!("{}", e))?;
+    hash_bytes(&input_bytes)
+}
+
+pub fn hash_bytes(input_bytes: &[u8]) -> Result<String, String> {
     let mut hasher = blake3::Hasher::new();
-    hasher.update(&input_bytes);
+    hasher.update(input_bytes);
     let hash = hasher.finalize();
     let hash_bytes = hash.as_bytes();
     let content_hash =

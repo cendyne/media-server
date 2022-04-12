@@ -45,6 +45,7 @@ While primarily for images it can store other common file types too.
 37. Always overwrite uploaded file, do so before database updates
 38. Use transaction around inserts with last insert id
 39. Image transformation chain structure, encoder and decoder
+40. Custom Byte response
 
 ## Next things to do
 

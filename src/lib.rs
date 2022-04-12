@@ -5,6 +5,7 @@ extern crate dotenv;
 pub mod models;
 pub mod schema;
 
+mod byte_content;
 mod content_encoding;
 mod content_type;
 mod existing_file_handler;
@@ -18,6 +19,7 @@ mod sqlite;
 mod transformations;
 mod virtual_object;
 
+pub use byte_content::ByteContent;
 pub use content_encoding::ContentEncodingValue;
 pub use content_type::{content_type_or_from_safe_ext, content_type_to_extension};
 pub use existing_file_handler::ExistingFileHandler;

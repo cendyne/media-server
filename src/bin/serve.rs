@@ -7,7 +7,7 @@ use media_server::*;
 use rocket::form::Form;
 use rocket::fs::FileServer;
 use rocket::fs::TempFile;
-use rocket::http::{ContentType, MediaType};
+use rocket::http::ContentType;
 
 use rocket::serde::json::Json;
 use rocket::State;
@@ -32,8 +32,13 @@ const TINY_GIF: [u8; 37] = [
 ];
 
 #[get("/favicon.ico")]
-fn favicon() -> (ContentType, &'static [u8]) {
-    (ContentType::from(MediaType::GIF), &TINY_GIF)
+fn favicon() -> Result<ByteContent, String> {
+    ByteContent::from_static_bytes(
+        &TINY_GIF,
+        ("image", "gif"),
+        ContentEncodingValue::Identity,
+        Some(86400),
+    )
 }
 
 #[put("/object/<input_path..>?<width>&<height>&<enc>&<ext>", data = "<file>")]
