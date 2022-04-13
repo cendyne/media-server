@@ -74,7 +74,16 @@ impl Handler for ExistingFileHandler {
                         return Outcome::failure(Status::InternalServerError);
                     }
                 };
-                let bytes = match encode_in_memory(image, "png") {
+                let image_type = match req.query_value::<&str>("ty").transpose().unwrap_or(None) {
+                    Some("jpeg") => "jpeg",
+                    Some("png") => "png",
+                    Some("avif") => "avif",
+                    Some("gif") => "gif",
+                    Some("webp") => "webp",
+                    _ => "png",
+                };
+                let quality = req.query_value::<u8>("q").transpose().unwrap_or(None);
+                let bytes = match encode_in_memory(image, image_type, quality) {
                     Ok(bytes) => bytes,
                     Err(_) => {
                         return Outcome::failure(Status::InternalServerError);
@@ -82,7 +91,7 @@ impl Handler for ExistingFileHandler {
                 };
                 let content = ByteContent::from_bytes(
                     bytes,
-                    ("image", "png"),
+                    ("image", image_type),
                     ContentEncodingValue::Identity,
                     None,
                 );

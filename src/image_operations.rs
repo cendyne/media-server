@@ -1,6 +1,8 @@
+use image::codecs::avif::AvifEncoder;
+use image::codecs::gif::GifEncoder;
 use image::imageops::{blur, crop, overlay, resize, FilterType};
 use image::io::Reader as ImageReader;
-use image::{ImageBuffer, ImageOutputFormat, Rgba, RgbaImage};
+use image::{ColorType, ImageBuffer, ImageOutputFormat, Rgba, RgbaImage};
 use std::io::{Cursor, Read, Seek, SeekFrom};
 
 use crate::file_things::upload_path;
@@ -52,32 +54,13 @@ pub fn apply_transformations(
                 background
             }
             Crop(x, y, w, h) => crop(&mut image, *x, *y, *w, *h).to_image(),
+            Noop => image,
         }
     });
     Ok(result)
 }
 
-pub fn encode_in_memory(image: RgbaImage, sub: &'static str) -> Result<Vec<u8>, String> {
-    let mut buffer = Cursor::new(Vec::new());
-    let format = match sub {
-        "png" => ImageOutputFormat::Png,
-        "jpeg" => ImageOutputFormat::Jpeg(75), // quality?
-        "gif" => ImageOutputFormat::Gif,
-        "avif" => ImageOutputFormat::Avif,
-        // TODO webp
-        _ => {
-            return Err(format!("Unknown type {}", sub));
-        }
-    };
-    let dimensions = image.dimensions();
-    println!(
-        "Output image with dimensions {}x{}",
-        dimensions.0, dimensions.1
-    );
-    image
-        .write_to(&mut buffer, format)
-        .map_err(|e| format!("{}", e))?;
-    println!("Cursor length is {}", buffer.position());
+fn cursor_to_vec(mut buffer: Cursor<Vec<u8>>) -> Result<Vec<u8>, String> {
     let mut out = Vec::new();
     // Rewind cursor
     buffer
@@ -86,4 +69,67 @@ pub fn encode_in_memory(image: RgbaImage, sub: &'static str) -> Result<Vec<u8>, 
     buffer.read_to_end(&mut out).map_err(|e| format!("{}", e))?;
     println!("Output length is {}", out.len());
     Ok(out)
+}
+
+pub fn encode_in_memory(
+    image: RgbaImage,
+    sub: &'static str,
+    quality: Option<u8>,
+) -> Result<Vec<u8>, String> {
+    let dimensions = image.dimensions();
+    println!(
+        "Output image with dimensions {}x{}",
+        dimensions.0, dimensions.1
+    );
+    let format = match sub {
+        "png" => ImageOutputFormat::Png,
+        "jpeg" => ImageOutputFormat::Jpeg(quality.unwrap_or(75)),
+        "gif" => {
+            let mut buffer = Cursor::new(Vec::new());
+
+            // Enclose this in a block so that we do not mutably borrow buffer
+            // in more than two places at once
+            {
+                let mut encoder = GifEncoder::new_with_speed(&mut buffer, 25);
+                encoder
+                    .encode(
+                        image.as_raw(),
+                        image.width(),
+                        image.height(),
+                        ColorType::Rgba8,
+                    )
+                    .map_err(|e| format!("{}", e))?;
+            }
+            return cursor_to_vec(buffer);
+        }
+        "avif" => {
+            let mut buffer = Cursor::new(Vec::new());
+            let encoder =
+                AvifEncoder::new_with_speed_quality(&mut buffer, 8, quality.unwrap_or(75));
+            encoder
+                .write_image(
+                    image.as_raw(),
+                    image.width(),
+                    image.height(),
+                    ColorType::Rgba8,
+                )
+                .map_err(|e| format!("{}", e))?;
+            return cursor_to_vec(buffer);
+        }
+        "webp" => {
+            let encoder = webp::Encoder::from_rgba(image.as_raw(), image.width(), image.height());
+            let encoded = encoder.encode(75.0);
+            return Ok(encoded.to_vec());
+        }
+        // TODO webp
+        _ => {
+            return Err(format!("Unknown type {}", sub));
+        }
+    };
+
+    let mut buffer = Cursor::new(Vec::new());
+    image
+        .write_to(&mut buffer, format)
+        .map_err(|e| format!("{}", e))?;
+    cursor_to_vec(buffer)
 }

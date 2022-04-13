@@ -52,6 +52,9 @@ While primarily for images it can store other common file types too.
 44. Add background filter support
 45. Add resize and scale filter support
 46. Remove ouroboros dependency
+47. Add WebP encoding
+48. Fix Avif being on the slowest mode
+49. Add Quality parameter
 
 ## Next things to do
 
@@ -114,6 +117,7 @@ While primarily for images it can store other common file types too.
 * Add default bg color to vobj
 * Add filter chain (text) to object table
 * Add parent / derived object to object table
+* Add parent / derived vobj to virtual object table
 * Add parent path to upload function
 * Add client provided filter chain to upload function
 * Save image to temp file with chosen content type

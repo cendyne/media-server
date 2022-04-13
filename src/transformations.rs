@@ -24,6 +24,7 @@ pub enum Transformation {
     Background(u32),
     Blur(f32),
     Crop(u32, u32, u32, u32),
+    Noop,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -43,6 +44,7 @@ impl fmt::Display for Transformation {
             Transformation::Background(color) => write!(f, "bg{:06x}", color),
             Transformation::Blur(sigma) => write!(f, "bl{}", sigma),
             Transformation::Crop(x, y, w, h) => write!(f, "c{}_{}_{}_{}", x, y, w, h),
+            Transformation::Noop => write!(f, "id"),
         }
     }
 }
@@ -112,6 +114,16 @@ impl FromStr for Transformation {
                             let factor = s[2..].parse::<f32>().map_err(|e| format!("{}", e))?;
                             Ok(Transformation::Blur(factor))
                         }
+                        _ => Err(format!("Could not parse {} into a transformation", s)),
+                    }
+                } else {
+                    Err(format!("Could not parse {} into a transformation", s))
+                }
+            }
+            Some('i') => {
+                if let Some(second) = chars.next() {
+                    match second {
+                        'd' => Ok(Transformation::Noop),
                         _ => Err(format!("Could not parse {} into a transformation", s)),
                     }
                 } else {
@@ -210,6 +222,16 @@ mod tests {
             Ok(Transformation::Resize(128, 256)),
             "r128_256".parse::<Transformation>()
         );
+    }
+
+    #[test]
+    fn noop_encodes_as_expected() {
+        assert_eq!("id", Transformation::Noop.to_string());
+    }
+
+    #[test]
+    fn noop_decodes_as_expected() {
+        assert_eq!(Ok(Transformation::Noop), "id".parse::<Transformation>());
     }
 
     #[test]
