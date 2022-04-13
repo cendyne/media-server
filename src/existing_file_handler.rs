@@ -14,7 +14,11 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use crate::image_operations::*;
+use crate::models::Object;
 use crate::sqlite::Pool;
+use crate::ByteContent;
+use crate::ContentEncodingValue;
 use crate::FileContent;
 use crate::{parse_existing_file_request, search_existing_file_query};
 use rocket::http::{Method, Status};
@@ -45,21 +49,58 @@ impl Handler for ExistingFileHandler {
 
         let query = parse_existing_file_request(req);
 
+        println!("Transformations? {:?}", query.transformations());
+
+        let query_transformations = query.transformations();
+
         // Search for virtual object first
-        let object = if let Ok(Some(object)) = search_existing_file_query(&conn, query) {
+        let object: Object = if let Ok(Some(object)) = search_existing_file_query(&conn, query) {
             object
         } else {
             return Outcome::forward(data);
         };
-        let file = match FileContent::load(object).await {
-            Ok(file) => file,
-            Err(err) => {
-                println!("File content expected but could not load: {}", err);
-                return Outcome::failure(Status::InternalServerError);
-            }
-        };
 
-        Outcome::from(req, file)
+        match query_transformations {
+            Some(transformations) => {
+                let image = match open_image(&object.file_path) {
+                    Ok(image) => image,
+                    Err(_) => {
+                        return Outcome::failure(Status::InternalServerError);
+                    }
+                };
+                let image = match apply_transformations(image, transformations) {
+                    Ok(image) => image,
+                    Err(_) => {
+                        return Outcome::failure(Status::InternalServerError);
+                    }
+                };
+                let bytes = match encode_in_memory(image, "png") {
+                    Ok(bytes) => bytes,
+                    Err(_) => {
+                        return Outcome::failure(Status::InternalServerError);
+                    }
+                };
+                let content = ByteContent::from_bytes(
+                    bytes,
+                    ("image", "png"),
+                    ContentEncodingValue::Identity,
+                    None,
+                );
+
+                Outcome::from(req, content)
+            }
+            None => {
+                let file = match FileContent::load(object).await {
+                    Ok(file) => file,
+                    Err(err) => {
+                        println!("File content expected but could not load: {}", err);
+                        return Outcome::failure(Status::InternalServerError);
+                    }
+                };
+
+                Outcome::from(req, file)
+            }
+        }
     }
 }
 

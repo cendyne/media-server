@@ -28,6 +28,7 @@ mod existing_file_handler;
 mod file_content;
 mod file_things;
 mod find_object;
+mod image_operations;
 mod object;
 mod parsing;
 mod server_name;

@@ -17,7 +17,7 @@
 use std::fmt;
 use std::str::FromStr;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Transformation {
     Scale(f32),
     Resize(u32, u32),
@@ -26,8 +26,14 @@ pub enum Transformation {
     Crop(u32, u32, u32, u32),
 }
 
-#[derive(Debug, PartialEq)]
-pub struct TransformationList(pub Vec<Transformation>);
+#[derive(Debug, PartialEq, Clone)]
+pub struct TransformationList(Vec<Transformation>);
+
+impl TransformationList {
+    pub fn list(self) -> Vec<Transformation> {
+        self.0
+    }
+}
 
 impl fmt::Display for Transformation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -56,6 +62,15 @@ impl fmt::Display for TransformationList {
                 acc
             }
         })
+    }
+}
+
+impl<'r> rocket::form::FromFormField<'r> for TransformationList {
+    fn from_value(field: rocket::form::ValueField<'r>) -> rocket::form::Result<'r, Self> {
+        field
+            .value
+            .parse::<TransformationList>()
+            .map_err(|err| rocket::form::Errors::from(rocket::form::Error::validation(err)))
     }
 }
 

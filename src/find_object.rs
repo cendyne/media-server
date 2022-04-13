@@ -22,8 +22,7 @@ use diesel::sqlite::SqliteConnection;
 use crate::content_encoding::ContentEncodingValue;
 use crate::models::Object;
 use crate::parsing::grab_basename;
-
-use ouroboros::self_referencing;
+use crate::transformations::TransformationList;
 
 // use rocket::http::ContentType;
 use rocket::request::Request;
@@ -140,16 +139,20 @@ pub fn find_object_by_parameters(
     Ok(closest.cloned())
 }
 
-#[self_referencing]
 pub struct ExistingFileRequestQuery {
     raw_path: String,
-    #[covariant]
-    #[borrows(raw_path)]
-    paths: Vec<&'this str>,
+    path_ranges: Vec<std::ops::Range<usize>>,
     width: Option<i32>,
     height: Option<i32>,
     content_type: Option<String>,
     content_encoding: Option<ContentEncodingValue>,
+    transformations: Option<TransformationList>,
+}
+
+impl ExistingFileRequestQuery {
+    pub fn transformations(&self) -> Option<TransformationList> {
+        self.transformations.clone()
+    }
 }
 
 pub fn parse_existing_file_request(req: &Request<'_>) -> ExistingFileRequestQuery {
@@ -237,56 +240,54 @@ pub fn parse_existing_file_request(req: &Request<'_>) -> ExistingFileRequestQuer
     // println!("Encoding: {:?}, Extension: {:?}", parsed_path.content_encoding_ext_range.map(|r| &raw_path[r]), parsed_path.content_type_ext_range.map(|r| &raw_path[r]));
     // TODO convert to content type combo and encoding
 
-    ExistingFileRequestQueryBuilder {
+    let mut path_ranges = Vec::with_capacity(3);
+    if skip_first.start > 0 {
+        path_ranges.push(skip_first);
+    }
+    if let Some(range) = first_extension {
+        path_ranges.push(range);
+    }
+    if let Some(range) = second_extension {
+        path_ranges.push(range);
+    }
+
+    // Raw path is added last
+    if include_full {
+        path_ranges.push(0..raw_path.len());
+    }
+
+    let transformations = req
+        .query_value::<TransformationList>("t")
+        .transpose()
+        .unwrap_or(None);
+
+    ExistingFileRequestQuery {
         raw_path,
-        paths_builder: |raw_path: &String| {
-            let mut result = Vec::with_capacity(3);
-            if skip_first.start > 0 {
-                let slice = &raw_path[skip_first];
-                result.push(slice);
-            }
-
-            match first_extension {
-                None => {}
-                Some(range) => {
-                    let slice = &raw_path[range];
-                    result.push(slice);
-                }
-            }
-            match second_extension {
-                None => {}
-                Some(range) => {
-                    let slice = &raw_path[range];
-                    result.push(slice);
-                }
-            }
-
-            // Raw path is added last
-            if include_full {
-                result.push(&raw_path[..]);
-            }
-
-            println!("Found paths {:?}", result);
-            result
-        },
+        path_ranges,
         width,
         height,
         content_type,
         content_encoding,
+        transformations,
     }
-    .build()
 }
 
 pub fn search_existing_file_query(
     conn: &SqliteConnection,
     query: ExistingFileRequestQuery,
 ) -> Result<Option<Object>, String> {
+    let paths: Vec<&str> = query
+        .path_ranges
+        .iter()
+        .map(|range| &query.raw_path[range.clone()])
+        .collect();
+    let content_type = query.content_type;
     find_object_by_parameters(
         conn,
-        query.borrow_paths(),
-        *query.borrow_width(),
-        *query.borrow_height(),
-        query.borrow_content_type().as_deref(),
-        query.borrow_content_encoding().clone(),
+        &paths,
+        query.width,
+        query.height,
+        content_type.as_deref(),
+        query.content_encoding,
     )
 }
