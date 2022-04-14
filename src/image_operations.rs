@@ -4,18 +4,57 @@ use image::imageops::{blur, crop, overlay, resize, FilterType};
 use image::io::Reader as ImageReader;
 use image::{ColorType, ImageBuffer, ImageOutputFormat, Rgba, RgbaImage};
 use std::io::{Cursor, Read, Seek, SeekFrom};
+use tokio::fs::File;
 
 use crate::file_things::upload_path;
 use crate::transformations::{Transformation, TransformationList};
 
-pub fn open_image(input_path: &str) -> Result<RgbaImage, String> {
+pub async fn open_image(input_path: &str) -> Result<RgbaImage, String> {
     let mut path = upload_path()?;
     path.push(input_path);
-    let img = ImageReader::open(path)
-        .map_err(|e| format!("{}", e))?
-        .decode()
-        .map_err(|e| format!("{}", e))?
-        .into_rgba8();
+    let img = if input_path.ends_with(".webp") {
+        let data = {
+            use tokio::io::AsyncReadExt;
+            let mut f = File::open(path).await.map_err(|e| format!("{}", e))?;
+            let mut data = Vec::new();
+            f.read_to_end(&mut data)
+                .await
+                .map_err(|e| format!("{}", e))?;
+            println!("Read WebP data {} bytes", data.len());
+            data
+        };
+
+        let decoder = webp::Decoder::new(&data);
+        match decoder.decode() {
+            None => {
+                return Err("Could not decode webp".to_string());
+            }
+            Some(webp_image) => {
+                let internal_img = webp_image.to_image().into_rgba8();
+                let new_img = RgbaImage::from_raw(
+                    internal_img.width(),
+                    internal_img.height(),
+                    internal_img.to_vec(),
+                );
+                match new_img {
+                    Some(img) => {
+                        println!("Parsed webp image!");
+                        img
+                    }
+                    None => {
+                        return Err("Could not copy webp data".to_string());
+                    }
+                }
+            }
+        }
+    } else {
+        ImageReader::open(path)
+            .map_err(|e| format!("{}", e))?
+            .decode()
+            .map_err(|e| format!("{}", e))?
+            .into_rgba8()
+    };
+
     let dimensions = img.dimensions();
     println!(
         "Parsed image {} with dimensions {}x{}",
@@ -39,7 +78,7 @@ pub fn apply_transformations(
                 let dimensions = image.dimensions();
                 let w = (f * (dimensions.0 as f32) / 100.0) as u32;
                 let h = (f * (dimensions.1 as f32) / 100.0) as u32;
-                resize(&image, w, h, FilterType::Triangle)
+                resize(&image, w, h, FilterType::Lanczos3)
             }
             Blur(sigma) => blur(&image, *sigma),
             Background(color) => {

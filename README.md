@@ -55,6 +55,7 @@ While primarily for images it can store other common file types too.
 47. Add WebP encoding
 48. Fix Avif being on the slowest mode
 49. Add Quality parameter
+50. Fix WebP decoding
 
 ## Next things to do
 

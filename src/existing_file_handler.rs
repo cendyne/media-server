@@ -62,15 +62,17 @@ impl Handler for ExistingFileHandler {
 
         match query_transformations {
             Some(transformations) => {
-                let image = match open_image(&object.file_path) {
+                let image = match open_image(&object.file_path).await {
                     Ok(image) => image,
-                    Err(_) => {
+                    Err(err) => {
+                        println!("Could not open image: {}", err);
                         return Outcome::failure(Status::InternalServerError);
                     }
                 };
                 let image = match apply_transformations(image, transformations) {
                     Ok(image) => image,
-                    Err(_) => {
+                    Err(err) => {
+                        println!("Could not apply transformations: {}", err);
                         return Outcome::failure(Status::InternalServerError);
                     }
                 };
@@ -85,7 +87,8 @@ impl Handler for ExistingFileHandler {
                 let quality = req.query_value::<u8>("q").transpose().unwrap_or(None);
                 let bytes = match encode_in_memory(image, image_type, quality) {
                     Ok(bytes) => bytes,
-                    Err(_) => {
+                    Err(err) => {
+                        println!("Could not encode {}", err);
                         return Outcome::failure(Status::InternalServerError);
                     }
                 };
