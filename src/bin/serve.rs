@@ -64,6 +64,7 @@ async fn upload_object(
     width: Option<i32>,
     height: Option<i32>,
     pool: &State<Pool>,
+    image_semaphore: &State<ImageSemaphore>,
     enc: Option<ContentEncodingValue>,
     ext: Option<&str>,
 ) -> Result<Json<models::UpsertObjectResponse>, String> {
@@ -135,7 +136,7 @@ async fn upload_object(
     let mut height = height;
 
     if "image" == content_type.media_type().top() && (width.is_none() || height.is_none()) {
-        if let Ok((w, h)) = open_image_dimensions_only(&file_path).await {
+        if let Ok((w, h)) = open_image_dimensions_only(&file_path, image_semaphore).await {
             width.replace(w as i32);
             height.replace(h as i32);
         }
@@ -244,8 +245,10 @@ fn rocket() -> _ {
     dotenv::dotenv().ok();
     let connection_pool = connect_pool();
     let static_path = upload_path().unwrap();
+    let image_semaphore = ImageSemaphore::new(1);
     rocket::build()
         .manage(connection_pool)
+        .manage(image_semaphore)
         .mount(
             "/",
             routes![

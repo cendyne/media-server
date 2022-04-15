@@ -32,6 +32,13 @@ pub struct ExistingFileHandler();
 #[rocket::async_trait]
 impl Handler for ExistingFileHandler {
     async fn handle<'r>(&self, req: &'r Request<'_>, data: Data<'r>) -> Outcome<'r> {
+        let sem = match req.guard::<&State<ImageSemaphore>>().await {
+            rocket::outcome::Outcome::Success(sem) => sem,
+            rocket::outcome::Outcome::Forward(_) => return Outcome::forward(data),
+            rocket::outcome::Outcome::Failure(_) => {
+                return Outcome::failure(Status::InternalServerError)
+            }
+        };
         // TODO shorten some how?
         let pool = match req.guard::<&State<Pool>>().await {
             rocket::outcome::Outcome::Success(pool) => pool,
@@ -62,14 +69,14 @@ impl Handler for ExistingFileHandler {
 
         match query_transformations {
             Some(transformations) => {
-                let image = match open_image(&object.file_path).await {
+                let opened_image = match open_image(&object.file_path, sem).await {
                     Ok(image) => image,
                     Err(err) => {
                         println!("Could not open image: {}", err);
                         return Outcome::failure(Status::InternalServerError);
                     }
                 };
-                let image = match apply_transformations(image, transformations).await {
+                let transformed_image = match apply_transformations(opened_image, transformations).await {
                     Ok(image) => image,
                     Err(err) => {
                         println!("Could not apply transformations: {}", err);
@@ -85,7 +92,7 @@ impl Handler for ExistingFileHandler {
                     _ => "png",
                 };
                 let quality = req.query_value::<u8>("q").transpose().unwrap_or(None);
-                let bytes = match encode_in_memory(image, image_type, quality).await {
+                let bytes = match encode_in_memory(transformed_image, image_type, quality).await {
                     Ok(bytes) => bytes,
                     Err(err) => {
                         println!("Could not encode {}", err);

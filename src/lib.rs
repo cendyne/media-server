@@ -45,7 +45,7 @@ pub use file_things::{copy_temp, hash_file, upload_path};
 pub use find_object::{
     find_object_by_parameters, parse_existing_file_request, search_existing_file_query,
 };
-pub use image_operations::open_image_dimensions_only;
+pub use image_operations::{open_image_dimensions_only, ImageSemaphore};
 pub use object::{
     create_object, find_object_by_file_path, find_object_by_hash, update_object, upsert_object,
     UpsertObjectCommand,

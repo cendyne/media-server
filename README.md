@@ -58,6 +58,7 @@ While primarily for images it can store other common file types too.
 50. Fix WebP decoding
 51. Use Tokio Async to load, process, and encode images
 52. Async identify dimensions of uploaded images and set width and height
+53. Introduce semaphore so async processing does not consume too much memory
 
 ## Next things to do
 
@@ -122,9 +123,6 @@ While primarily for images it can store other common file types too.
 * Add client provided filter chain to upload function
 * Save image to temp file with chosen content type
 * Hash and create new Object (with relationship to vobj)
-* refactor image loading, filters, and saving
-* Async all of it from the request, have loading filters and saving eun on io thread
-* Introduce semaphore so async processing does not consume too much memory
 * Consider blurhash (no rust encoder exists, c encoder looks relatively fine https://github.com/woltapp/blurhash/blob/master/C/encode.c )
 * Add text overlay support (this will require an additional few libraries...)
 * Add requested image filter variants in vobj PUT (synchronously create)

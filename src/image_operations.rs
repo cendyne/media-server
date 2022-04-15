@@ -6,11 +6,30 @@ use image::{ColorType, ImageBuffer, ImageOutputFormat, Rgba, RgbaImage};
 use std::io::{Cursor, Read, Seek, SeekFrom};
 use std::path::PathBuf;
 use tokio::fs::File;
+use tokio::sync::{Semaphore, SemaphorePermit};
 
 use crate::file_things::upload_path;
 use crate::transformations::{Transformation, TransformationList};
 
-pub async fn open_image(input_path: &str) -> Result<RgbaImage, String> {
+pub struct LimitedImage<'a> {
+    image: RgbaImage,
+    permit: SemaphorePermit<'a>,
+}
+
+pub struct ImageSemaphore {
+    semaphore: Semaphore,
+}
+
+impl ImageSemaphore {
+    pub fn new(permits: usize) -> Self {
+        Self {
+            semaphore: Semaphore::new(permits)
+        }
+    }
+}
+
+pub async fn open_image<'a>(input_path: &str, sem: &'a ImageSemaphore) -> Result<LimitedImage<'a>, String> {
+    let permit = sem.semaphore.acquire().await.map_err(|e| format!("{}", e))?;
     let mut path = upload_path()?;
     path.push(input_path);
     let img = if input_path.ends_with(".webp") {
@@ -60,7 +79,10 @@ pub async fn open_image(input_path: &str) -> Result<RgbaImage, String> {
         "Parsed image {} with dimensions {}x{}",
         input_path, dimensions.0, dimensions.1
     );
-    Ok(img)
+    Ok(LimitedImage {
+        image: img,
+        permit,
+    })
 }
 
 fn blocking_image_open(path: PathBuf) -> Result<RgbaImage, String> {
@@ -72,9 +94,9 @@ fn blocking_image_open(path: PathBuf) -> Result<RgbaImage, String> {
     Ok(image)
 }
 
-pub async fn open_image_dimensions_only(input_path: &str) -> Result<(u32, u32), String> {
-    let image = open_image(input_path).await?;
-    Ok(image.dimensions())
+pub async fn open_image_dimensions_only(input_path: &str, sem: &ImageSemaphore) -> Result<(u32, u32), String> {
+    let image = open_image(input_path, sem).await?;
+    Ok(image.image.dimensions())
 }
 
 fn blocking_apply_transformations(
@@ -113,13 +135,18 @@ fn blocking_apply_transformations(
     Ok(result)
 }
 
-pub async fn apply_transformations(
-    image: RgbaImage,
+pub async fn apply_transformations<'a>(
+    image: LimitedImage<'a>,
     transformations: TransformationList,
-) -> Result<RgbaImage, String> {
-    tokio::task::spawn_blocking(|| blocking_apply_transformations(image, transformations))
+) -> Result<LimitedImage<'a>, String> {
+    let img = image.image;
+    let result = tokio::task::spawn_blocking(|| blocking_apply_transformations(img, transformations))
         .await
-        .map_err(|e| format!("{}", e))?
+        .map_err(|e| format!("{}", e))?;
+    Ok(LimitedImage {
+        image: result?,
+        permit: image.permit,
+    })
 }
 
 fn cursor_to_vec(mut buffer: Cursor<Vec<u8>>) -> Result<Vec<u8>, String> {
@@ -197,11 +224,12 @@ fn blocking_encode_in_memory(
 }
 
 pub async fn encode_in_memory(
-    image: RgbaImage,
+    image: LimitedImage<'_>,
     sub: &'static str,
     quality: Option<u8>,
 ) -> Result<Vec<u8>, String> {
-    tokio::task::spawn_blocking(move || blocking_encode_in_memory(image, sub, quality))
+    let img = image.image;
+    tokio::task::spawn_blocking(move || blocking_encode_in_memory(img, sub, quality))
         .await
         .map_err(|e| format!("{}", e))?
 }
