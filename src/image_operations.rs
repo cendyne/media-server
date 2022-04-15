@@ -4,6 +4,7 @@ use image::imageops::{blur, crop, overlay, resize, FilterType};
 use image::io::Reader as ImageReader;
 use image::{ColorType, ImageBuffer, ImageOutputFormat, Rgba, RgbaImage};
 use std::io::{Cursor, Read, Seek, SeekFrom};
+use std::path::PathBuf;
 use tokio::fs::File;
 
 use crate::file_things::upload_path;
@@ -48,11 +49,10 @@ pub async fn open_image(input_path: &str) -> Result<RgbaImage, String> {
             }
         }
     } else {
-        ImageReader::open(path)
-            .map_err(|e| format!("{}", e))?
-            .decode()
-            .map_err(|e| format!("{}", e))?
-            .into_rgba8()
+        let result = tokio::task::spawn_blocking(|| blocking_image_open(path))
+            .await
+            .map_err(|e| format!("{}", e))?;
+        result?
     };
 
     let dimensions = img.dimensions();
@@ -63,7 +63,21 @@ pub async fn open_image(input_path: &str) -> Result<RgbaImage, String> {
     Ok(img)
 }
 
-pub fn apply_transformations(
+fn blocking_image_open(path: PathBuf) -> Result<RgbaImage, String> {
+    let image = ImageReader::open(path)
+        .map_err(|e| format!("{}", e))?
+        .decode()
+        .map_err(|e| format!("{}", e))?
+        .into_rgba8();
+    Ok(image)
+}
+
+pub async fn open_image_dimensions_only(input_path: &str) -> Result<(u32, u32), String> {
+    let image = open_image(input_path).await?;
+    Ok(image.dimensions())
+}
+
+fn blocking_apply_transformations(
     image: RgbaImage,
     transformations: TransformationList,
 ) -> Result<RgbaImage, String> {
@@ -99,6 +113,15 @@ pub fn apply_transformations(
     Ok(result)
 }
 
+pub async fn apply_transformations(
+    image: RgbaImage,
+    transformations: TransformationList,
+) -> Result<RgbaImage, String> {
+    tokio::task::spawn_blocking(|| blocking_apply_transformations(image, transformations))
+        .await
+        .map_err(|e| format!("{}", e))?
+}
+
 fn cursor_to_vec(mut buffer: Cursor<Vec<u8>>) -> Result<Vec<u8>, String> {
     let mut out = Vec::new();
     // Rewind cursor
@@ -110,7 +133,7 @@ fn cursor_to_vec(mut buffer: Cursor<Vec<u8>>) -> Result<Vec<u8>, String> {
     Ok(out)
 }
 
-pub fn encode_in_memory(
+fn blocking_encode_in_memory(
     image: RgbaImage,
     sub: &'static str,
     quality: Option<u8>,
@@ -171,4 +194,14 @@ pub fn encode_in_memory(
         .write_to(&mut buffer, format)
         .map_err(|e| format!("{}", e))?;
     cursor_to_vec(buffer)
+}
+
+pub async fn encode_in_memory(
+    image: RgbaImage,
+    sub: &'static str,
+    quality: Option<u8>,
+) -> Result<Vec<u8>, String> {
+    tokio::task::spawn_blocking(move || blocking_encode_in_memory(image, sub, quality))
+        .await
+        .map_err(|e| format!("{}", e))?
 }

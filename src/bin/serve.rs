@@ -131,6 +131,16 @@ async fn upload_object(
     // Always overwrite the file
     copy_temp(temp_path, &destination).await?;
 
+    let mut width = width;
+    let mut height = height;
+
+    if "image" == content_type.media_type().top() && (width.is_none() || height.is_none()) {
+        if let Ok((w, h)) = open_image_dimensions_only(&file_path).await {
+            width.replace(w as i32);
+            height.replace(h as i32);
+        }
+    }
+
     let upserted_object_rl = upsert_object(
         &conn,
         UpsertObjectCommand {

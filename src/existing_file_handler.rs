@@ -69,7 +69,7 @@ impl Handler for ExistingFileHandler {
                         return Outcome::failure(Status::InternalServerError);
                     }
                 };
-                let image = match apply_transformations(image, transformations) {
+                let image = match apply_transformations(image, transformations).await {
                     Ok(image) => image,
                     Err(err) => {
                         println!("Could not apply transformations: {}", err);
@@ -85,7 +85,7 @@ impl Handler for ExistingFileHandler {
                     _ => "png",
                 };
                 let quality = req.query_value::<u8>("q").transpose().unwrap_or(None);
-                let bytes = match encode_in_memory(image, image_type, quality) {
+                let bytes = match encode_in_memory(image, image_type, quality).await {
                     Ok(bytes) => bytes,
                     Err(err) => {
                         println!("Could not encode {}", err);
