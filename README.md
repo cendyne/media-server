@@ -60,7 +60,7 @@ While primarily for images it can store other common file types too.
 52. Async identify dimensions of uploaded images and set width and height
 53. Introduce semaphore so async processing does not consume too much memory
 54. Update Object for object derivation, transforms
-55. Update Virtual Object for derivation, background color, transforms
+55. Update Virtual Object for derivation, background color, transforms, primary object relation
 
 ## Next things to do
 
@@ -113,6 +113,7 @@ While primarily for images it can store other common file types too.
   - Correct implementation may be Method Not Allowed
 
 ### Dynamic Resize (G3)
+* ToSQL / FromSQL traits for transform list
 * Add content type to parameters
 * Find Exact resolution match, sort by lossless then lossy, filter by supported content types and content encodings
 * Find Double (or higher) resolution match, sort by ...

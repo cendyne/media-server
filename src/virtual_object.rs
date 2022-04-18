@@ -87,6 +87,7 @@ pub fn find_or_create_virtual_object_by_object_path(
                         object_path: path.to_string(),
                         default_jpeg_bg: None,
                         derived_virtual_object_id: None,
+                        primary_object_id: None,
                         transforms: None,
                         transforms_hash: None,
                     })

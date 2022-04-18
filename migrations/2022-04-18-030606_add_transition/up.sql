@@ -29,15 +29,17 @@ create table `virtual_object` (
     `object_path` text not null,
     `default_jpeg_bg` text,
     `derived_virtual_object_id` integer,
+    `primary_object_id` integer,
     `transforms` text,
     `transforms_hash` text,
-    foreign key (`derived_virtual_object_id`) references `object`(`id`),
+    foreign key (`derived_virtual_object_id`) references `virtual_object`(`id`),
+    foreign key (`primary_object_id`) references `object`(`id`),
     unique(`object_path`)
 );
 
 CREATE INDEX `virtual_object_transforms_hash` on `virtual_object`(`transforms_hash`);
 
-insert into `virtual_object` select `id`, `object_path`, null, null, null, null from `old_virtual_object` order by `id`;
+insert into `virtual_object` select `id`, `object_path`, null, null, null, null, null from `old_virtual_object` order by `id`;
 
 -- Now relationship because its foreign keys need to point to the right tables
 

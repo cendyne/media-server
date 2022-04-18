@@ -39,6 +39,7 @@ table! {
         object_path -> Text,
         default_jpeg_bg -> Nullable<Text>,
         derived_virtual_object_id -> Nullable<Integer>,
+        primary_object_id -> Nullable<Integer>,
         transforms -> Nullable<Text>,
         transforms_hash -> Nullable<Text>,
     }
@@ -51,7 +52,7 @@ table! {
     }
 }
 
-joinable!(virtual_object -> object (derived_virtual_object_id));
+joinable!(virtual_object -> object (primary_object_id));
 joinable!(virtual_object_relation -> object (object_id));
 joinable!(virtual_object_relation -> virtual_object (virtual_object_id));
 

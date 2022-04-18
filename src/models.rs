@@ -75,6 +75,7 @@ pub struct VirtualObject {
     pub object_path: String,
     pub default_jpeg_bg: Option<String>,
     pub derived_virtual_object_id: Option<i32>,
+    pub primary_object_id: Option<i32>,
     pub transforms: Option<String>,
     pub transforms_hash: Option<String>,
 }
@@ -85,6 +86,7 @@ pub struct NewVirtualObject {
     pub object_path: String,
     pub default_jpeg_bg: Option<String>,
     pub derived_virtual_object_id: Option<i32>,
+    pub primary_object_id: Option<i32>,
     pub transforms: Option<String>,
     pub transforms_hash: Option<String>,
 }
