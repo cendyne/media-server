@@ -59,6 +59,9 @@ pub fn update_object(
             content_type: content_type.to_string(),
             content_encoding: content_encoding.to_string(),
             content_headers: headers,
+            derived_object_id: None,
+            transforms: None,
+            transforms_hash: None,
         })
         .filter(object::id.eq(&id))
         .execute(conn)
@@ -134,6 +137,9 @@ pub fn upsert_object(
                 file_path: command.file_path.to_string(),
                 created: now,
                 modified: now,
+                derived_object_id: None,
+                transforms: None,
+                transforms_hash: None,
                 width: command.width,
                 height: command.height,
                 // TODO headers

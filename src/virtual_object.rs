@@ -85,6 +85,10 @@ pub fn find_or_create_virtual_object_by_object_path(
                 let result = diesel::insert_into(virtual_object::table)
                     .values(NewVirtualObject {
                         object_path: path.to_string(),
+                        default_jpeg_bg: None,
+                        derived_virtual_object_id: None,
+                        transforms: None,
+                        transforms_hash: None,
                     })
                     .execute(conn)?;
                 if result > 0 {

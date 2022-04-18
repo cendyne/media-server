@@ -24,6 +24,9 @@ table! {
         file_path -> Text,
         created -> BigInt,
         modified -> BigInt,
+        derived_object_id -> Nullable<Integer>,
+        transforms -> Nullable<Text>,
+        transforms_hash -> Nullable<Text>,
         width -> Nullable<Integer>,
         height -> Nullable<Integer>,
         content_headers -> Nullable<Text>,
@@ -34,6 +37,10 @@ table! {
     virtual_object (id) {
         id -> Integer,
         object_path -> Text,
+        default_jpeg_bg -> Nullable<Text>,
+        derived_virtual_object_id -> Nullable<Integer>,
+        transforms -> Nullable<Text>,
+        transforms_hash -> Nullable<Text>,
     }
 }
 
@@ -44,7 +51,12 @@ table! {
     }
 }
 
+joinable!(virtual_object -> object (derived_virtual_object_id));
 joinable!(virtual_object_relation -> object (object_id));
 joinable!(virtual_object_relation -> virtual_object (virtual_object_id));
 
-allow_tables_to_appear_in_same_query!(object, virtual_object, virtual_object_relation,);
+allow_tables_to_appear_in_same_query!(
+    object,
+    virtual_object,
+    virtual_object_relation,
+);

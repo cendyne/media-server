@@ -28,6 +28,9 @@ pub struct Object {
     pub file_path: String,
     pub created: i64,
     pub modified: i64,
+    pub derived_object_id: Option<i32>,
+    pub transforms: Option<String>,
+    pub transforms_hash: Option<String>,
     pub width: Option<i32>,
     pub height: Option<i32>,
     pub content_headers: Option<String>,
@@ -43,6 +46,9 @@ pub struct NewObject {
     pub file_path: String,
     pub created: i64,
     pub modified: i64,
+    pub derived_object_id: Option<i32>,
+    pub transforms: Option<String>,
+    pub transforms_hash: Option<String>,
     pub width: Option<i32>,
     pub height: Option<i32>,
     pub content_headers: Option<String>,
@@ -58,18 +64,29 @@ pub struct UpdateObject {
     pub content_type: String,
     pub content_encoding: String,
     pub content_headers: Option<String>,
+    pub derived_object_id: Option<i32>,
+    pub transforms: Option<String>,
+    pub transforms_hash: Option<String>,
 }
 
 #[derive(Queryable, Debug)]
 pub struct VirtualObject {
     pub id: i32,
     pub object_path: String,
+    pub default_jpeg_bg: Option<String>,
+    pub derived_virtual_object_id: Option<i32>,
+    pub transforms: Option<String>,
+    pub transforms_hash: Option<String>,
 }
 
 #[derive(Insertable)]
 #[table_name = "virtual_object"]
 pub struct NewVirtualObject {
     pub object_path: String,
+    pub default_jpeg_bg: Option<String>,
+    pub derived_virtual_object_id: Option<i32>,
+    pub transforms: Option<String>,
+    pub transforms_hash: Option<String>,
 }
 
 #[derive(Insertable)]

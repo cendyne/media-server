@@ -59,6 +59,8 @@ While primarily for images it can store other common file types too.
 51. Use Tokio Async to load, process, and encode images
 52. Async identify dimensions of uploaded images and set width and height
 53. Introduce semaphore so async processing does not consume too much memory
+54. Update Object for object derivation, transforms
+55. Update Virtual Object for derivation, background color, transforms
 
 ## Next things to do
 
@@ -115,10 +117,6 @@ While primarily for images it can store other common file types too.
 * Find Exact resolution match, sort by lossless then lossy, filter by supported content types and content encodings
 * Find Double (or higher) resolution match, sort by ...
 * Find max resolution, sort by ...
-* Add default bg color to vobj
-* Add filter chain (text) to object table
-* Add parent / derived object to object table
-* Add parent / derived vobj to virtual object table
 * Add parent path to upload function
 * Add client provided filter chain to upload function
 * Save image to temp file with chosen content type
