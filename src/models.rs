@@ -34,6 +34,7 @@ pub struct Object {
     pub width: Option<i32>,
     pub height: Option<i32>,
     pub content_headers: Option<String>,
+    pub quality: Option<i32>,
 }
 
 #[derive(Insertable)]
@@ -52,6 +53,7 @@ pub struct NewObject {
     pub width: Option<i32>,
     pub height: Option<i32>,
     pub content_headers: Option<String>,
+    pub quality: Option<i32>,
 }
 
 #[derive(AsChangeset)]
@@ -67,6 +69,7 @@ pub struct UpdateObject {
     pub derived_object_id: Option<i32>,
     pub transforms: Option<String>,
     pub transforms_hash: Option<String>,
+    pub quality: Option<i32>,
 }
 
 #[derive(Queryable, Debug)]

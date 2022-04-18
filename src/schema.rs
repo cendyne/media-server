@@ -30,6 +30,7 @@ table! {
         width -> Nullable<Integer>,
         height -> Nullable<Integer>,
         content_headers -> Nullable<Text>,
+        quality -> Nullable<Integer>,
     }
 }
 

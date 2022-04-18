@@ -62,6 +62,7 @@ pub fn update_object(
             derived_object_id: None,
             transforms: None,
             transforms_hash: None,
+            quality: None,
         })
         .filter(object::id.eq(&id))
         .execute(conn)
@@ -144,6 +145,7 @@ pub fn upsert_object(
                 height: command.height,
                 // TODO headers
                 content_headers: None,
+                quality: None,
             };
             create_object(conn, &new_object)?;
         }
