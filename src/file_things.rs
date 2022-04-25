@@ -31,22 +31,6 @@ struct ContentHMACKey {
 static CONTENT_HMAC_KEY: OnceCell<ContentHMACKey> = OnceCell::new();
 static UPLOAD_PATH: OnceCell<PathBuf> = OnceCell::new();
 
-pub fn hash_base64_url_safe_no_padding(b64: &str) -> Result<String, String> {
-    let input_bytes =
-        Base64UrlSafeNoPadding::decode_to_vec(b64, None).map_err(|e| format!("{}", e))?;
-    hash_bytes(&input_bytes)
-}
-
-pub fn hash_bytes(input_bytes: &[u8]) -> Result<String, String> {
-    let mut hasher = blake3::Hasher::new();
-    hasher.update(input_bytes);
-    let hash = hasher.finalize();
-    let hash_bytes = hash.as_bytes();
-    let content_hash =
-        Base64UrlSafeNoPadding::encode_to_string(&hash_bytes).map_err(|e| format!("{}", e))?;
-    Ok(content_hash)
-}
-
 fn load_content_hmac_key() -> Result<ContentHMACKey, String> {
     let input = std::env::var("CONTENT_HMAC_KEY").map_err(|e| format!("{}", e))?;
     if input.len() == 64 {
@@ -66,18 +50,41 @@ fn load_content_hmac_key() -> Result<ContentHMACKey, String> {
     }
 }
 
-pub async fn hash_file(path: &Path) -> Result<String, String> {
+fn keyed_hasher() -> Result<blake3::Hasher, String> {
+    let key_wrapper = CONTENT_HMAC_KEY.get_or_try_init(load_content_hmac_key)?;
+    Ok(blake3::Hasher::new_keyed(&key_wrapper.key))
+}
+
+pub fn hash_base64_url_safe_no_padding(b64: &str) -> Result<String, String> {
+    let input_bytes =
+        Base64UrlSafeNoPadding::decode_to_vec(b64, None).map_err(|e| format!("{}", e))?;
+    hash_bytes_b64(&input_bytes)
+}
+
+pub fn hash_bytes_bytes(input_bytes: &[u8]) -> Result<[u8; blake3::OUT_LEN], String> {
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(input_bytes);
+    let hash = hasher.finalize();
+    let hash_bytes = hash.as_bytes();
+    Ok(*hash_bytes)
+}
+
+pub fn hash_bytes_b64(input_bytes: &[u8]) -> Result<String, String> {
+    let hash_bytes = hash_bytes_bytes(input_bytes)?;
+    let content_hash =
+        Base64UrlSafeNoPadding::encode_to_string(&hash_bytes).map_err(|e| format!("{}", e))?;
+    Ok(content_hash)
+}
+
+pub async fn keyed_hash_file_bytes(path: &Path) -> Result<[u8; blake3::OUT_LEN], String> {
     let mut open_file = File::open(path).await.map_err(|err| format!("{:?}", err))?;
     let mut buffer = BytesMut::with_capacity(128);
-    let key_wrapper = CONTENT_HMAC_KEY.get_or_try_init(load_content_hmac_key)?;
-    let mut hasher = blake3::Hasher::new_keyed(&key_wrapper.key);
+    let mut hasher = keyed_hasher()?;
     let mut read_bytes = open_file
         .read_buf(&mut buffer)
         .await
         .map_err(|err| format!("{:?}", err))?;
-    let mut total_bytes = 0;
     while read_bytes > 0 {
-        total_bytes += read_bytes;
         hasher.update(&buffer[0..read_bytes]);
         // continue
         buffer.clear();
@@ -88,9 +95,28 @@ pub async fn hash_file(path: &Path) -> Result<String, String> {
     }
     let hash = hasher.finalize();
     let hash_bytes = hash.as_bytes();
+    Ok(*hash_bytes)
+}
+
+pub fn keyed_hash_bytes_bytes(input_bytes: &[u8]) -> Result<[u8; blake3::OUT_LEN], String> {
+    let mut hasher = keyed_hasher()?;
+    hasher.update(input_bytes);
+    let hash = hasher.finalize();
+    let hash_bytes = hash.as_bytes();
+    Ok(*hash_bytes)
+}
+
+pub async fn keyed_hash_file_b64(path: &Path) -> Result<String, String> {
+    let hash_bytes = keyed_hash_file_bytes(path).await?;
     let content_hash =
         Base64UrlSafeNoPadding::encode_to_string(&hash_bytes).map_err(|e| format!("{}", e))?;
-    println!("Finished hashing {} bytes to {}", total_bytes, content_hash);
+    Ok(content_hash)
+}
+
+pub fn keyed_hash_bytes_b64(input_bytes: &[u8]) -> Result<String, String> {
+    let hash_bytes = keyed_hash_bytes_bytes(input_bytes)?;
+    let content_hash =
+        Base64UrlSafeNoPadding::encode_to_string(&hash_bytes).map_err(|e| format!("{}", e))?;
     Ok(content_hash)
 }
 
@@ -134,12 +160,6 @@ pub async fn copy_temp(from_path: &Path, to_path: &Path) -> Result<(), String> {
     Ok(())
 }
 
-pub fn upload_path() -> Result<PathBuf, String> {
-    UPLOAD_PATH
-        .get_or_try_init(internal_upload_path)
-        .map(|p| p.clone())
-}
-
 fn internal_upload_path() -> Result<PathBuf, String> {
     let path = std::env::var("UPLOAD_PATH").unwrap_or_else(|_| {
         println!("Warning UPLOAD_PATH is not set, will use ./files");
@@ -151,4 +171,10 @@ fn internal_upload_path() -> Result<PathBuf, String> {
         .canonicalize()
         .map_err(|err| format!("{}", err))?;
     Ok(absolute_path)
+}
+
+pub fn upload_path() -> Result<PathBuf, String> {
+    UPLOAD_PATH
+        .get_or_try_init(internal_upload_path)
+        .map(|p| p.clone())
 }

@@ -121,7 +121,7 @@ async fn upload_object(
         .path()
         .ok_or_else(|| "File upload is unsupported".to_string())?;
     // Read temp file and generate a content hash (will be used as etag too)
-    let content_hash = hash_file(temp_path).await?;
+    let content_hash = keyed_hash_file_b64(temp_path).await?;
 
     // Build internal file path
     let file_path = format!("{}.{}", &content_hash[..10], fs_ext);

@@ -16,6 +16,7 @@
 
 use crate::image_operations::*;
 use crate::models::Object;
+use crate::object_image::*;
 use crate::sqlite::Pool;
 use crate::ByteContent;
 use crate::ContentEncodingValue;

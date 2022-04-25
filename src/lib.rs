@@ -30,6 +30,7 @@ mod file_things;
 mod find_object;
 mod image_operations;
 mod object;
+mod object_image;
 mod parsing;
 mod server_name;
 mod sqlite;
@@ -41,7 +42,7 @@ pub use content_encoding::ContentEncodingValue;
 pub use content_type::{content_type_or_from_safe_ext, content_type_to_extension};
 pub use existing_file_handler::ExistingFileHandler;
 pub use file_content::FileContent;
-pub use file_things::{copy_temp, hash_file, upload_path};
+pub use file_things::*;
 pub use find_object::{
     find_object_by_parameters, parse_existing_file_request, search_existing_file_query,
 };
