@@ -57,6 +57,7 @@ fn favicon() -> Result<ByteContent, String> {
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 #[put("/object/<input_path..>?<width>&<height>&<enc>&<ext>", data = "<file>")]
 async fn upload_object(
     input_path: PathBuf,

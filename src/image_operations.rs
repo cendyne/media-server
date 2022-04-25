@@ -135,10 +135,10 @@ fn blocking_apply_transformations(
     Ok(result)
 }
 
-pub async fn apply_transformations<'a>(
-    image: LimitedImage<'a>,
+pub async fn apply_transformations(
+    image: LimitedImage<'_>,
     transformations: TransformationList,
-) -> Result<LimitedImage<'a>, String> {
+) -> Result<LimitedImage<'_>, String> {
     let img = image.image;
     let result = tokio::task::spawn_blocking(|| blocking_apply_transformations(img, transformations))
         .await
