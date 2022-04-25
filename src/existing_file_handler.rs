@@ -69,39 +69,37 @@ impl Handler for ExistingFileHandler {
 
         match query_transformations {
             Some(transformations) => {
-                let opened_image = match open_image(&object.file_path, sem).await {
-                    Ok(image) => image,
-                    Err(err) => {
-                        println!("Could not open image: {}", err);
-                        return Outcome::failure(Status::InternalServerError);
-                    }
-                };
-                let transformed_image = match apply_transformations(opened_image, transformations).await {
-                    Ok(image) => image,
-                    Err(err) => {
-                        println!("Could not apply transformations: {}", err);
-                        return Outcome::failure(Status::InternalServerError);
-                    }
-                };
-                let image_type = match req.query_value::<&str>("ty").transpose().unwrap_or(None) {
-                    Some("jpeg") => "jpeg",
-                    Some("png") => "png",
-                    Some("avif") => "avif",
-                    Some("gif") => "gif",
-                    Some("webp") => "webp",
-                    _ => "png",
-                };
                 let quality = req.query_value::<u8>("q").transpose().unwrap_or(None);
-                let bytes = match encode_in_memory(transformed_image, image_type, quality).await {
-                    Ok(bytes) => bytes,
+                let image_type = req
+                    .query_value::<ImageFormat>("ty")
+                    .transpose()
+                    .unwrap_or(None);
+
+                let encoded_image = match read_transform_encode(
+                    &object.file_path,
+                    transformations,
+                    quality,
+                    image_type,
+                    sem,
+                )
+                .await
+                {
+                    Ok(encoded_image) => encoded_image,
                     Err(err) => {
-                        println!("Could not encode {}", err);
+                        println!("Could not encode image {}", err);
+                        return Outcome::failure(Status::InternalServerError);
+                    }
+                };
+                let content_type = match encoded_image.format.content_type() {
+                    Ok(content_type) => content_type,
+                    Err(err) => {
+                        println!("Unknown content type {}", err);
                         return Outcome::failure(Status::InternalServerError);
                     }
                 };
                 let content = ByteContent::from_bytes(
-                    bytes,
-                    ("image", image_type),
+                    encoded_image.bytes,
+                    content_type,
                     ContentEncodingValue::Identity,
                     None,
                 );

@@ -5,11 +5,74 @@ use image::io::Reader as ImageReader;
 use image::{ColorType, ImageBuffer, ImageOutputFormat, Rgba, RgbaImage};
 use std::io::{Cursor, Read, Seek, SeekFrom};
 use std::path::PathBuf;
+use std::str::FromStr;
 use tokio::fs::File;
 use tokio::sync::{Semaphore, SemaphorePermit};
 
 use crate::file_things::upload_path;
 use crate::transformations::{Transformation, TransformationList};
+
+#[allow(clippy::upper_case_acronyms, dead_code)]
+#[derive(Debug, Clone, PartialEq)]
+pub enum ImageFormat {
+    PNG,
+    JPEG,
+    GIF,
+    AVIF,
+    WEBP,
+    UNKNOWN,
+}
+
+impl ImageFormat {
+    pub fn to_str(&self) -> Result<&'static str, String> {
+        match self {
+            Self::PNG => Ok("png"),
+            Self::JPEG => Ok("jpeg"),
+            Self::GIF => Ok("gif"),
+            Self::AVIF => Ok("avif"),
+            Self::WEBP => Ok("webp"),
+            Self::UNKNOWN => Err("Unknown type".to_string()),
+        }
+    }
+    pub fn content_type(&self) -> Result<(&'static str, &'static str), String> {
+        self.to_str().map(|sub| ("image", sub))
+    }
+    #[allow(dead_code)]
+    pub fn to_extension(&self) -> Result<&'static str, String> {
+        match self {
+            Self::PNG => Ok("png"),
+            Self::JPEG => Ok("jpg"),
+            Self::GIF => Ok("gif"),
+            Self::AVIF => Ok("avif"),
+            Self::WEBP => Ok("webp"),
+            Self::UNKNOWN => Err("Unknown type".to_string()),
+        }
+    }
+}
+
+impl<'r> rocket::form::FromFormField<'r> for ImageFormat {
+    fn from_value(field: rocket::form::ValueField<'r>) -> rocket::form::Result<'r, Self> {
+        field
+            .value
+            .parse::<ImageFormat>()
+            .map_err(|err| rocket::form::Errors::from(rocket::form::Error::validation(err)))
+    }
+}
+
+impl FromStr for ImageFormat {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "png" => Ok(Self::PNG),
+            "jpeg" => Ok(Self::JPEG),
+            "jpg" => Ok(Self::JPEG),
+            "gif" => Ok(Self::GIF),
+            "avif" => Ok(Self::AVIF),
+            "webp" => Ok(Self::WEBP),
+            _ => Err(format!("Unrecognized type {}", s)),
+        }
+    }
+}
 
 pub struct LimitedImage<'a> {
     image: RgbaImage,
@@ -23,13 +86,20 @@ pub struct ImageSemaphore {
 impl ImageSemaphore {
     pub fn new(permits: usize) -> Self {
         Self {
-            semaphore: Semaphore::new(permits)
+            semaphore: Semaphore::new(permits),
         }
     }
 }
 
-pub async fn open_image<'a>(input_path: &str, sem: &'a ImageSemaphore) -> Result<LimitedImage<'a>, String> {
-    let permit = sem.semaphore.acquire().await.map_err(|e| format!("{}", e))?;
+pub async fn open_image<'a>(
+    input_path: &str,
+    sem: &'a ImageSemaphore,
+) -> Result<LimitedImage<'a>, String> {
+    let permit = sem
+        .semaphore
+        .acquire()
+        .await
+        .map_err(|e| format!("{}", e))?;
     let mut path = upload_path()?;
     path.push(input_path);
     let img = if input_path.ends_with(".webp") {
@@ -79,10 +149,7 @@ pub async fn open_image<'a>(input_path: &str, sem: &'a ImageSemaphore) -> Result
         "Parsed image {} with dimensions {}x{}",
         input_path, dimensions.0, dimensions.1
     );
-    Ok(LimitedImage {
-        image: img,
-        permit,
-    })
+    Ok(LimitedImage { image: img, permit })
 }
 
 fn blocking_image_open(path: PathBuf) -> Result<RgbaImage, String> {
@@ -94,7 +161,10 @@ fn blocking_image_open(path: PathBuf) -> Result<RgbaImage, String> {
     Ok(image)
 }
 
-pub async fn open_image_dimensions_only(input_path: &str, sem: &ImageSemaphore) -> Result<(u32, u32), String> {
+pub async fn open_image_dimensions_only(
+    input_path: &str,
+    sem: &ImageSemaphore,
+) -> Result<(u32, u32), String> {
     let image = open_image(input_path, sem).await?;
     Ok(image.image.dimensions())
 }
@@ -140,9 +210,10 @@ pub async fn apply_transformations(
     transformations: TransformationList,
 ) -> Result<LimitedImage<'_>, String> {
     let img = image.image;
-    let result = tokio::task::spawn_blocking(|| blocking_apply_transformations(img, transformations))
-        .await
-        .map_err(|e| format!("{}", e))?;
+    let result =
+        tokio::task::spawn_blocking(|| blocking_apply_transformations(img, transformations))
+            .await
+            .map_err(|e| format!("{}", e))?;
     Ok(LimitedImage {
         image: result?,
         permit: image.permit,
@@ -162,7 +233,7 @@ fn cursor_to_vec(mut buffer: Cursor<Vec<u8>>) -> Result<Vec<u8>, String> {
 
 fn blocking_encode_in_memory(
     image: RgbaImage,
-    sub: &'static str,
+    sub: ImageFormat,
     quality: Option<u8>,
 ) -> Result<Vec<u8>, String> {
     let dimensions = image.dimensions();
@@ -171,9 +242,9 @@ fn blocking_encode_in_memory(
         dimensions.0, dimensions.1
     );
     let format = match sub {
-        "png" => ImageOutputFormat::Png,
-        "jpeg" => ImageOutputFormat::Jpeg(quality.unwrap_or(75)),
-        "gif" => {
+        ImageFormat::PNG => ImageOutputFormat::Png,
+        ImageFormat::JPEG => ImageOutputFormat::Jpeg(quality.unwrap_or(75)),
+        ImageFormat::GIF => {
             let mut buffer = Cursor::new(Vec::new());
 
             // Enclose this in a block so that we do not mutably borrow buffer
@@ -191,7 +262,7 @@ fn blocking_encode_in_memory(
             }
             return cursor_to_vec(buffer);
         }
-        "avif" => {
+        ImageFormat::AVIF => {
             let mut buffer = Cursor::new(Vec::new());
             let encoder =
                 AvifEncoder::new_with_speed_quality(&mut buffer, 8, quality.unwrap_or(75));
@@ -205,14 +276,13 @@ fn blocking_encode_in_memory(
                 .map_err(|e| format!("{}", e))?;
             return cursor_to_vec(buffer);
         }
-        "webp" => {
+        ImageFormat::WEBP => {
             let encoder = webp::Encoder::from_rgba(image.as_raw(), image.width(), image.height());
             let encoded = encoder.encode(75.0);
             return Ok(encoded.to_vec());
         }
-        // TODO webp
         _ => {
-            return Err(format!("Unknown type {}", sub));
+            return Err(format!("Unknown type {:?}", sub));
         }
     };
 
@@ -223,13 +293,38 @@ fn blocking_encode_in_memory(
     cursor_to_vec(buffer)
 }
 
+pub struct EncodedImage {
+    pub bytes: Vec<u8>,
+    pub format: ImageFormat,
+}
+
 pub async fn encode_in_memory(
     image: LimitedImage<'_>,
-    sub: &'static str,
+    format: ImageFormat,
     quality: Option<u8>,
-) -> Result<Vec<u8>, String> {
+) -> Result<EncodedImage, String> {
     let img = image.image;
-    tokio::task::spawn_blocking(move || blocking_encode_in_memory(img, sub, quality))
-        .await
-        .map_err(|e| format!("{}", e))?
+    let encode_format = format.clone();
+    let bytes =
+        tokio::task::spawn_blocking(move || blocking_encode_in_memory(img, encode_format, quality))
+            .await
+            .map_err(|e| format!("{}", e))??;
+    Ok(EncodedImage { bytes, format })
+}
+
+pub async fn read_transform_encode(
+    file_path: &str,
+    transformations: TransformationList,
+    quality: Option<u8>,
+    format: Option<ImageFormat>,
+    sem: &ImageSemaphore,
+) -> Result<EncodedImage, String> {
+    let opened_image = open_image(file_path, sem).await?;
+    let transformed_image = apply_transformations(opened_image, transformations).await?;
+    encode_in_memory(
+        transformed_image,
+        format.unwrap_or(ImageFormat::PNG),
+        quality,
+    )
+    .await
 }
