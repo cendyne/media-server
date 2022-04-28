@@ -296,6 +296,8 @@ fn blocking_encode_in_memory(
 pub struct EncodedImage {
     pub bytes: Vec<u8>,
     pub format: ImageFormat,
+    pub width: u32,
+    pub height: u32,
 }
 
 pub async fn encode_in_memory(
@@ -304,10 +306,17 @@ pub async fn encode_in_memory(
     quality: Option<u8>,
 ) -> Result<EncodedImage, String> {
     let img = image.image;
+    let width = img.width();
+    let height = img.height();
     let encode_format = format.clone();
     let bytes =
         tokio::task::spawn_blocking(move || blocking_encode_in_memory(img, encode_format, quality))
             .await
             .map_err(|e| format!("{}", e))??;
-    Ok(EncodedImage { bytes, format })
+    Ok(EncodedImage {
+        bytes,
+        format,
+        width,
+        height,
+    })
 }

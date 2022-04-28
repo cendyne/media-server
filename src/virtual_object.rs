@@ -18,7 +18,10 @@ use diesel::prelude::*;
 use diesel::sqlite::SqliteConnection;
 use std::collections::HashSet;
 
-use crate::models::{NewVirtualObject, Object, ReplaceVirtualObjectRelation, VirtualObject};
+use crate::models::{
+    NewVirtualObject, Object, ReplaceVirtualObjectRelation, UpdateTransformedVirtualObject,
+    VirtualObject,
+};
 use crate::sqlite::last_insert_rowid;
 
 pub fn find_virtual_object_by_object_path(
@@ -208,5 +211,20 @@ pub fn replace_virtual_object_relations(
     remove_virtual_object_relations(conn, &to_remove, virtual_object)?;
     // Add does a replace into, no need to do another difference
     add_virtual_object_relations(conn, objects, virtual_object)?;
+    Ok(())
+}
+
+pub fn update_transformed_virtual_object(
+    conn: &SqliteConnection,
+    id: i32,
+    update: UpdateTransformedVirtualObject,
+) -> Result<(), String> {
+    use crate::schema::virtual_object;
+    let count = diesel::update(virtual_object::table)
+        .set(&update)
+        .filter(virtual_object::id.eq(&id))
+        .execute(conn)
+        .map_err(|err| format!("{}", err))?;
+    println!("Updated {}", count);
     Ok(())
 }

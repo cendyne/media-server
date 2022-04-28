@@ -21,8 +21,9 @@ use std::time::SystemTime;
 
 use crate::content_encoding::ContentEncodingValue;
 use crate::models::{NewObject, Object, UpdateObject};
+use crate::sqlite::*;
 
-pub fn create_object(conn: &SqliteConnection, new_object: &NewObject) -> Result<(), String> {
+pub fn create_object(conn: &Conn, new_object: &NewObject) -> Result<(), String> {
     use crate::schema::object;
 
     let result = diesel::insert_into(object::table)
@@ -59,10 +60,10 @@ pub fn update_object(
             content_type: content_type.to_string(),
             content_encoding: content_encoding.to_string(),
             content_headers: headers,
-            derived_object_id: None,
-            transforms: None,
-            transforms_hash: None,
-            quality: None,
+            // derived_object_id: None,
+            // transforms: None,
+            // transforms_hash: None,
+            // quality: None,
         })
         .filter(object::id.eq(&id))
         .execute(conn)

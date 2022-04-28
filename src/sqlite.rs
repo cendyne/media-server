@@ -19,7 +19,8 @@ use diesel::sql_types;
 use diesel::sqlite::SqliteConnection;
 use dotenv::dotenv;
 
-pub type Pool = r2d2::Pool<ConnectionManager<SqliteConnection>>;
+pub type Conn = SqliteConnection;
+pub type Pool = r2d2::Pool<ConnectionManager<Conn>>;
 
 no_arg_sql_function!(last_insert_rowid, sql_types::Integer);
 

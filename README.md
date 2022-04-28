@@ -62,6 +62,7 @@ While primarily for images it can store other common file types too.
 54. Update Object for object derivation, transforms
 55. Update Virtual Object for derivation, background color, transforms, primary object relation
 56. Add quality to object
+57. Create derived transformed object, hashed etc.
 
 ## Next things to do
 
@@ -120,8 +121,6 @@ While primarily for images it can store other common file types too.
 * Find max resolution, sort by ...
 * Add parent path to upload function
 * Add client provided filter chain to upload function
-* Save image to temp file with chosen content type
-* Hash and create new Object (with relationship to vobj)
 * Consider blurhash (no rust encoder exists, c encoder looks relatively fine https://github.com/woltapp/blurhash/blob/master/C/encode.c )
 * Add text overlay support (this will require an additional few libraries...)
 * Add requested image filter variants in vobj PUT (synchronously create)

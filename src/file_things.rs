@@ -178,3 +178,25 @@ pub fn upload_path() -> Result<PathBuf, String> {
         .get_or_try_init(internal_upload_path)
         .map(|p| p.clone())
 }
+
+pub async fn write_bytes_to_file(to_path: &Path, bytes: &[u8]) -> Result<(), String> {
+    let mut to_file = File::create(to_path)
+        .await
+        .map_err(|err| format!("{:?}", err))?;
+    let mut buffer: [u8; 1024] = [0; 1024];
+    let total_bytes = bytes.len();
+    let mut write_bytes = 0;
+    while write_bytes < total_bytes {
+        let remaining = total_bytes - write_bytes;
+        let this_time = if remaining > 1024 { 1024 } else { remaining };
+        buffer[0..this_time].copy_from_slice(&bytes[write_bytes..write_bytes + this_time]);
+        to_file
+            .write(&buffer)
+            .await
+            .map_err(|err| format!("{:?}", err))?;
+        write_bytes += this_time;
+    }
+    to_file.flush().await.map_err(|err| format!("{:?}", err))?;
+    println!("Wrote {} bytes to {:?} ", write_bytes, to_path);
+    Ok(())
+}

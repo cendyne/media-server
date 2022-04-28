@@ -16,12 +16,17 @@
 
 use crate::image_operations::*;
 use crate::models::Object;
+use crate::models::UpdateTransformedVirtualObject;
 use crate::object_image::*;
 use crate::sqlite::Pool;
+use crate::virtual_object::{add_virtual_object_relations, update_transformed_virtual_object};
 use crate::ByteContent;
 use crate::ContentEncodingValue;
 use crate::FileContent;
-use crate::{parse_existing_file_request, search_existing_file_query};
+use crate::{
+    find_or_create_virtual_object_by_object_path, parse_existing_file_request,
+    search_existing_file_query,
+};
 use rocket::http::{Method, Status};
 use rocket::route::{Handler, Outcome, Route};
 use rocket::State;
@@ -61,6 +66,7 @@ impl Handler for ExistingFileHandler {
 
         let query_transformations = query.transformations();
 
+        let as_path = req.query_value::<String>("as").transpose().unwrap_or(None);
         // Search for virtual object first
         let object: Object = if let Ok(Some(object)) = search_existing_file_query(&conn, query) {
             object
@@ -76,11 +82,69 @@ impl Handler for ExistingFileHandler {
                     .transpose()
                     .unwrap_or(None);
 
+                match as_path {
+                    Some(path) => {
+                        match derive_transformed_image(
+                            &object,
+                            None,
+                            transformations,
+                            quality,
+                            image_type,
+                            sem,
+                            pool,
+                        )
+                        .await
+                        {
+                            Ok((object, virtual_object)) => {
+                                // TODO refactor
+                                if let Ok(vobj) = find_or_create_virtual_object_by_object_path(&conn, &path) {
+                                    let update = UpdateTransformedVirtualObject {
+                                        default_jpeg_bg: virtual_object.default_jpeg_bg,
+                                        derived_virtual_object_id: virtual_object
+                                            .derived_virtual_object_id,
+                                        primary_object_id: Some(object.id),
+                                        transforms: object.transforms.clone(),
+                                        transforms_hash: object.transforms_hash.clone(),
+                                    };
+
+                                    let objects = vec![object.clone()];
+                                    if add_virtual_object_relations(&conn, &objects, &vobj).is_ok() {
+                                        println!(
+                                            "Object {} tied to vobject at {}",
+                                            object.id, path
+                                        );
+                                    }
+                                    if update_transformed_virtual_object(&conn, vobj.id, update).is_ok() {
+                                        println!("New vobject at {} is set up", path);
+                                    }
+                                }
+                                let file = match FileContent::load(object).await {
+                                    Ok(file) => file,
+                                    Err(err) => {
+                                        println!(
+                                            "File content expected but could not load: {}",
+                                            err
+                                        );
+                                        return Outcome::failure(Status::InternalServerError);
+                                    }
+                                };
+
+                                return Outcome::from(req, file);
+                            }
+                            Err(err) => {
+                                println!("Could not encode image {}", err);
+                                return Outcome::failure(Status::InternalServerError);
+                            }
+                        }
+                    }
+                    None => {}
+                };
+
                 let encoded_image = match read_transform_encode(
                     &object.file_path,
                     transformations,
                     quality,
-                    image_type,
+                    image_type.unwrap_or(ImageFormat::PNG),
                     sem,
                 )
                 .await

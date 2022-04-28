@@ -184,6 +184,13 @@ pub const TOP_LEVEL_TYPES: phf::Map<&'static str, phf::Map<&'static str, &'stati
     "font" => FONT_TYPE_EXTENSIONS,
 };
 
+pub fn content_type_to_ext(top: &str, sub: &str) -> Result<&'static str, String> {
+    match TOP_LEVEL_TYPES.get(top).and_then(|m| m.get(sub)) {
+        Some(e) => Ok(e),
+        None => Err(format!("Content type \"{}/{}\"Not supported", top, sub)),
+    }
+}
+
 pub fn content_type_to_extension<'a>(
     content_type: &ContentType,
     user_ext: &str,
@@ -200,20 +207,16 @@ pub fn content_type_to_extension<'a>(
         .as_str()
         .to_string()
         .to_lowercase();
-    let found = TOP_LEVEL_TYPES.get(&top[..]).and_then(|m| m.get(&sub));
-
-    let ext = if let Some(e) = found {
-        e
-    } else {
-        match SAFE_EXTS.get_key(user_ext) {
-            Some(e) => e,
+    match content_type_to_ext(&top, &sub) {
+        Ok(ext) => Ok(ext),
+        Err(_) => match SAFE_EXTS.get_key(user_ext) {
+            Some(e) => Ok(e),
             None => match ALTERNATE_EXTS.get(user_ext) {
-                Some(e) => e,
-                None => "bin",
+                Some(e) => Ok(e),
+                None => Ok("bin"),
             },
-        }
-    };
-    Ok(ext)
+        },
+    }
 }
 
 pub fn content_type_or_from_safe_ext(ct: &ContentType, user_ext: &str) -> ContentType {
@@ -224,5 +227,21 @@ pub fn content_type_or_from_safe_ext(ct: &ContentType, user_ext: &str) -> Conten
         }
     } else {
         ct.clone()
+    }
+}
+
+pub fn find_known_content_type(content_type: &str) -> Option<(&'static str, &'static str)> {
+    let slash_index = match content_type.find('/') {
+        Some(index) => index,
+        None => {
+            return None;
+        }
+    };
+    let top = &content_type[..slash_index];
+    let sub = &content_type[slash_index + 1..];
+
+    match TOP_LEVEL_TYPES.get_entry(top) {
+        Some((top_key, sub_map)) => sub_map.get_key(sub).map(|sub_key| (*top_key, *sub_key)),
+        _ => None,
     }
 }

@@ -66,10 +66,20 @@ pub struct UpdateObject {
     pub content_type: String,
     pub content_encoding: String,
     pub content_headers: Option<String>,
-    pub derived_object_id: Option<i32>,
+    // pub derived_object_id: Option<i32>,
+    // pub transforms: Option<String>,
+    // pub transforms_hash: Option<String>,
+    // pub quality: Option<i32>,
+}
+
+#[derive(AsChangeset, Debug)]
+#[table_name = "virtual_object"]
+pub struct UpdateTransformedVirtualObject {
+    pub default_jpeg_bg: Option<String>,
+    pub derived_virtual_object_id: Option<i32>,
+    pub primary_object_id: Option<i32>,
     pub transforms: Option<String>,
     pub transforms_hash: Option<String>,
-    pub quality: Option<i32>,
 }
 
 #[derive(Queryable, Debug)]
