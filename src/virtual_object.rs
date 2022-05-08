@@ -228,3 +228,30 @@ pub fn update_transformed_virtual_object(
     println!("Updated {}", count);
     Ok(())
 }
+
+pub fn set_primary_object(conn: &SqliteConnection, id: i32, object_id: i32) -> Result<(), String> {
+    use crate::schema::virtual_object;
+    let count = diesel::update(virtual_object::table)
+        .set(virtual_object::primary_object_id.eq(object_id))
+        .filter(virtual_object::id.eq(&id))
+        .execute(conn)
+        .map_err(|err| format!("{}", err))?;
+    println!("Updated {}", count);
+    Ok(())
+}
+
+pub fn set_primary_object_if_none(
+    conn: &SqliteConnection,
+    id: i32,
+    object_id: i32,
+) -> Result<(), String> {
+    use crate::schema::virtual_object;
+    let count = diesel::update(virtual_object::table)
+        .set(virtual_object::primary_object_id.eq(object_id))
+        .filter(virtual_object::id.eq(&id))
+        .filter(virtual_object::primary_object_id.eq(None::<i32>))
+        .execute(conn)
+        .map_err(|err| format!("{}", err))?;
+    println!("Updated {}", count);
+    Ok(())
+}

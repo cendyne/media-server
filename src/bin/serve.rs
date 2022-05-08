@@ -21,7 +21,6 @@ extern crate media_server;
 // use diesel::prelude::*;
 use media_server::*;
 use rocket::form::Form;
-use rocket::fs::FileServer;
 use rocket::fs::TempFile;
 use rocket::http::ContentType;
 
@@ -124,8 +123,8 @@ async fn upload_object(
     let content_hash = keyed_hash_file_b64(temp_path).await?;
 
     // Build internal file path
-    let file_path = format!("{}.{}", &content_hash[..10], fs_ext);
-    let virtual_object_path = &content_hash[..10];
+    let file_path = format!("{}.{}", &content_hash[..20], fs_ext);
+    let virtual_object_path = &content_hash[..20];
     destination.push(&file_path);
 
     let length = file.len() as i64;
@@ -166,10 +165,21 @@ async fn upload_object(
     let virtual_object = find_or_create_virtual_object_by_object_path(&conn, virtual_object_path)?;
     let objects = vec![upserted_object.clone()];
     replace_virtual_object_relations(&conn, &objects, &virtual_object)?;
+    if let Some(object) = objects.get(0) {
+        println!(
+            "Setting primary object {} to {}",
+            virtual_object_path, object.file_path
+        );
+        set_primary_object_if_none(&conn, virtual_object.id, object.id)?;
+    }
 
     if !path.is_empty() {
         let virtual_object = find_or_create_virtual_object_by_object_path(&conn, path)?;
-        add_virtual_object_relations(&conn, &objects, &virtual_object)?;
+        replace_virtual_object_relations(&conn, &objects, &virtual_object)?;
+        if let Some(object) = objects.get(0) {
+            println!("Setting primary object {} to {}", path, object.file_path);
+            set_primary_object(&conn, virtual_object.id, object.id)?;
+        }
     }
 
     Ok(Json(models::UpsertObjectResponse {
@@ -241,11 +251,92 @@ async fn get_virtual_object(
     }
 }
 
+#[post("/derive-object/<input_path..>", data = "<body>")]
+async fn derive_objects(
+    input_path: PathBuf,
+    pool: &State<Pool>,
+    sem: &State<ImageSemaphore>,
+    body: Json<models::DeriveTransformedObjectsRequest>,
+) -> Result<Json<models::DeriveTransformedObjectsResponse>, String> {
+    let path = input_path
+        .to_str()
+        .ok_or_else(|| "Could not parse path for some reason".to_string())?;
+    let conn = pool.get().map_err(|e| format!("{}", e))?;
+    let virtual_object = find_virtual_object_by_object_path(&conn, path)?;
+    let vobj = match virtual_object {
+        None => return Err("not found".to_string()),
+        Some(vobj) => vobj,
+    };
+    let object_id = match vobj.primary_object_id {
+        None => {
+            return Err("Finding dominant object not implemented".to_string());
+        }
+        Some(id) => id,
+    };
+
+    let obj = if let Some(object) = find_object_by_id(&conn, object_id)? {
+        object
+    } else {
+        return Err("Internal error, could not find object".to_string());
+    };
+
+    let mut response = models::DeriveTransformedObjectsResponse {
+        objects: Vec::with_capacity(body.objects.len()),
+    };
+    let vobj_opt = Some(&vobj);
+    for derived_object in &body.objects {
+        let transforms = derived_object
+            .transforms
+            .clone()
+            .unwrap_or_else(TransformationList::empty);
+        match derive_transformed_image(
+            &obj,
+            vobj_opt,
+            transforms,
+            derived_object.quality,
+            derived_object.content_type.parse::<ImageFormat>().ok(),
+            sem,
+            pool,
+        )
+        .await
+        {
+            Ok((object, virtual_object)) => {
+                // TODO refactor
+                let vobj =
+                    find_or_create_virtual_object_by_object_path(&conn, &derived_object.path)?;
+                let update = models::UpdateTransformedVirtualObject {
+                    default_jpeg_bg: virtual_object.default_jpeg_bg,
+                    derived_virtual_object_id: virtual_object.derived_virtual_object_id,
+                    primary_object_id: Some(object.id),
+                    transforms: object.transforms.clone(),
+                    transforms_hash: object.transforms_hash.clone(),
+                };
+
+                let objects = vec![object.clone()];
+                replace_virtual_object_relations(&conn, &objects, &vobj)?;
+                println!("Replaced object relations {:?}", objects);
+                println!("Updating virtual object {:?}", update);
+                update_transformed_virtual_object(&conn, vobj.id, update)?;
+            }
+            Err(e) => {
+                return Err(e);
+            }
+        }
+        response
+            .objects
+            .push(models::DeriveTransformedObjectsResponseObject {
+                path: derived_object.path.clone(),
+            });
+
+        println!("Output {:?}", derived_object);
+    }
+    Ok(Json::from(response))
+}
+
 #[launch]
 fn rocket() -> _ {
     dotenv::dotenv().ok();
     let connection_pool = connect_pool();
-    let static_path = upload_path().unwrap();
     let image_semaphore = ImageSemaphore::new(1);
     rocket::build()
         .manage(connection_pool)
@@ -259,10 +350,10 @@ fn rocket() -> _ {
                 upload_object,
                 upsert_virtual_object,
                 get_virtual_object,
+                derive_objects,
             ],
         )
         .mount("/", ExistingFileHandler())
-        .mount("/f", FileServer::from(static_path.as_path()))
         .attach(rocket::shield::Shield::new())
         .attach(ServerName::new("Cendyne Media"))
 }

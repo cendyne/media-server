@@ -34,6 +34,9 @@ impl TransformationList {
     pub fn list(self) -> Vec<Transformation> {
         self.0
     }
+    pub fn empty() -> TransformationList {
+        TransformationList(Vec::with_capacity(0))
+    }
 }
 
 impl fmt::Display for Transformation {
@@ -155,7 +158,7 @@ impl FromStr for TransformationList {
     type Err = String;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.is_empty() {
-            return Err("Cannot parse an empty string".to_string());
+            return Ok(TransformationList(Vec::with_capacity(0)));
         }
 
         let parts: Vec<&str> = s.split(',').collect();
@@ -166,6 +169,59 @@ impl FromStr for TransformationList {
         }
 
         Ok(TransformationList(result))
+    }
+}
+
+impl<'de> serde::Serialize for TransformationList {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for TransformationList
+where
+    Self: std::str::FromStr,
+    <Self as std::str::FromStr>::Err: std::fmt::Display,
+{
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct Helper<S>(std::marker::PhantomData<S>);
+
+        impl<'de, S> serde::de::Visitor<'de> for Helper<S>
+        where
+            S: std::str::FromStr,
+            <S as std::str::FromStr>::Err: std::fmt::Display,
+        {
+            type Value = S;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(formatter, "string")
+            }
+
+            fn visit_str<E>(self, value: &str) -> std::result::Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                value
+                    .parse::<Self::Value>()
+                    .map_err(serde::de::Error::custom)
+            }
+
+            fn visit_bytes<E>(self, value: &[u8]) -> std::result::Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                let utf8 = std::str::from_utf8(value).map_err(serde::de::Error::custom)?;
+                self.visit_str(utf8)
+            }
+        }
+
+        deserializer.deserialize_str(Helper(std::marker::PhantomData))
     }
 }
 

@@ -63,6 +63,12 @@ impl FromStr for ImageFormat {
     type Err = String;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
+            "image/png" => Ok(Self::PNG),
+            "image/jpeg" => Ok(Self::JPEG),
+            "image/jpg" => Ok(Self::JPEG),
+            "image/gif" => Ok(Self::GIF),
+            "image/avif" => Ok(Self::AVIF),
+            "image/webp" => Ok(Self::WEBP),
             "png" => Ok(Self::PNG),
             "jpeg" => Ok(Self::JPEG),
             "jpg" => Ok(Self::JPEG),
@@ -278,7 +284,7 @@ fn blocking_encode_in_memory(
         }
         ImageFormat::WEBP => {
             let encoder = webp::Encoder::from_rgba(image.as_raw(), image.width(), image.height());
-            let encoded = encoder.encode(75.0);
+            let encoded = encoder.encode(quality.map(|n| n as f32).unwrap_or(75.0));
             return Ok(encoded.to_vec());
         }
         _ => {

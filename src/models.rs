@@ -15,6 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use super::schema::{object, virtual_object, virtual_object_relation};
+use crate::transformations::TransformationList;
 use crate::ContentEncodingValue;
 use rocket::serde::{Deserialize, Serialize};
 
@@ -147,4 +148,31 @@ pub struct UpsertObjectResponse {
     pub content_length: i64,
     pub width: Option<i32>,
     pub height: Option<i32>,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct DeriveTransformedObjectsRequestObject {
+    pub path: String,
+    pub transforms: Option<TransformationList>,
+    pub content_type: String,
+    pub quality: Option<u8>,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct DeriveTransformedObjectsRequest {
+    pub objects: Vec<DeriveTransformedObjectsRequestObject>,
+}
+
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct DeriveTransformedObjectsResponseObject {
+    pub path: String,
+}
+
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct DeriveTransformedObjectsResponse {
+    pub objects: Vec<DeriveTransformedObjectsResponseObject>,
 }

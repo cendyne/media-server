@@ -72,6 +72,19 @@ pub fn update_object(
     Ok(())
 }
 
+pub fn find_object_by_id(
+    conn: &SqliteConnection,
+    object_id: i32,
+) -> Result<Option<Object>, String> {
+    use crate::schema::object::dsl::*;
+    let result = object
+        .filter(id.eq(object_id))
+        .first(conn)
+        .optional()
+        .map_err(|err| format!("{}", err))?;
+    Ok(result)
+}
+
 pub fn find_object_by_hash(conn: &SqliteConnection, hash: &str) -> Result<Option<Object>, String> {
     use crate::schema::object::dsl::*;
     let result = object

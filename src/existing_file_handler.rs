@@ -97,7 +97,9 @@ impl Handler for ExistingFileHandler {
                         {
                             Ok((object, virtual_object)) => {
                                 // TODO refactor
-                                if let Ok(vobj) = find_or_create_virtual_object_by_object_path(&conn, &path) {
+                                if let Ok(vobj) =
+                                    find_or_create_virtual_object_by_object_path(&conn, &path)
+                                {
                                     let update = UpdateTransformedVirtualObject {
                                         default_jpeg_bg: virtual_object.default_jpeg_bg,
                                         derived_virtual_object_id: virtual_object
@@ -108,13 +110,16 @@ impl Handler for ExistingFileHandler {
                                     };
 
                                     let objects = vec![object.clone()];
-                                    if add_virtual_object_relations(&conn, &objects, &vobj).is_ok() {
+                                    if add_virtual_object_relations(&conn, &objects, &vobj).is_ok()
+                                    {
                                         println!(
                                             "Object {} tied to vobject at {}",
                                             object.id, path
                                         );
                                     }
-                                    if update_transformed_virtual_object(&conn, vobj.id, update).is_ok() {
+                                    if update_transformed_virtual_object(&conn, vobj.id, update)
+                                        .is_ok()
+                                    {
                                         println!("New vobject at {} is set up", path);
                                     }
                                 }

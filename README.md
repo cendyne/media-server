@@ -63,6 +63,10 @@ While primarily for images it can store other common file types too.
 55. Update Virtual Object for derivation, background color, transforms, primary object relation
 56. Add quality to object
 57. Create derived transformed object, hashed etc.
+58. WebP encoding supports quality
+59. Replace rather than add relations on object upload
+60. Use Longer file names / virtual object paths
+61. Add derivation endpoint
 
 ## Next things to do
 
