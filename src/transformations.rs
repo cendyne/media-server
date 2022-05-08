@@ -39,6 +39,12 @@ impl TransformationList {
     }
 }
 
+impl From<Vec<Transformation>> for TransformationList {
+    fn from(item: Vec<Transformation>) -> Self {
+        TransformationList(item)
+    }
+}
+
 impl fmt::Display for Transformation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {

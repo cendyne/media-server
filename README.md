@@ -67,6 +67,7 @@ While primarily for images it can store other common file types too.
 59. Replace rather than add relations on object upload
 60. Use Longer file names / virtual object paths
 61. Add derivation endpoint
+62. Add blurhash support
 
 ## Next things to do
 
@@ -125,7 +126,6 @@ While primarily for images it can store other common file types too.
 * Find max resolution, sort by ...
 * Add parent path to upload function
 * Add client provided filter chain to upload function
-* Consider blurhash (no rust encoder exists, c encoder looks relatively fine https://github.com/woltapp/blurhash/blob/master/C/encode.c )
 * Add text overlay support (this will require an additional few libraries...)
 * Add requested image filter variants in vobj PUT (synchronously create)
 * Add durable queue for image filter variants

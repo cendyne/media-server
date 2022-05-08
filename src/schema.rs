@@ -35,6 +35,16 @@ table! {
 }
 
 table! {
+    object_blur_hash (object_id, x_components, y_components, background) {
+        object_id -> Integer,
+        x_components -> Integer,
+        y_components -> Integer,
+        background -> Text,
+        hash -> Text,
+    }
+}
+
+table! {
     virtual_object (id) {
         id -> Integer,
         object_path -> Text,
@@ -53,8 +63,14 @@ table! {
     }
 }
 
+joinable!(object_blur_hash -> object (object_id));
 joinable!(virtual_object -> object (primary_object_id));
 joinable!(virtual_object_relation -> object (object_id));
 joinable!(virtual_object_relation -> virtual_object (virtual_object_id));
 
-allow_tables_to_appear_in_same_query!(object, virtual_object, virtual_object_relation,);
+allow_tables_to_appear_in_same_query!(
+    object,
+    object_blur_hash,
+    virtual_object,
+    virtual_object_relation,
+);

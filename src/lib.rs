@@ -30,6 +30,7 @@ mod file_things;
 mod find_object;
 mod image_operations;
 mod object;
+mod object_blur_hash;
 mod object_image;
 mod parsing;
 mod server_name;
@@ -51,11 +52,12 @@ pub use object::{
     create_object, find_object_by_file_path, find_object_by_hash, find_object_by_id, update_object,
     upsert_object, UpsertObjectCommand,
 };
+pub use object_blur_hash::*;
 pub use object_image::derive_transformed_image;
 pub use parsing::{grab_basename, Basename};
 pub use server_name::ServerName;
 pub use sqlite::{connect_pool, Pool};
-pub use transformations::TransformationList;
+pub use transformations::{Transformation, TransformationList};
 pub use virtual_object::{
     add_virtual_object_relations, find_or_create_virtual_object_by_object_path,
     find_related_objects_to_virtual_object, find_virtual_object_by_object_path,

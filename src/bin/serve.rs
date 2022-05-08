@@ -282,6 +282,7 @@ async fn derive_objects(
 
     let mut response = models::DeriveTransformedObjectsResponse {
         objects: Vec::with_capacity(body.objects.len()),
+        blur_hash: Vec::with_capacity(body.blur_hash.len()),
     };
     let vobj_opt = Some(&vobj);
     for derived_object in &body.objects {
@@ -289,6 +290,7 @@ async fn derive_objects(
             .transforms
             .clone()
             .unwrap_or_else(TransformationList::empty);
+        let mut blur_hashes = Vec::with_capacity(derived_object.blur_hash.len());
         match derive_transformed_image(
             &obj,
             vobj_opt,
@@ -317,6 +319,26 @@ async fn derive_objects(
                 println!("Replaced object relations {:?}", objects);
                 println!("Updating virtual object {:?}", update);
                 update_transformed_virtual_object(&conn, vobj.id, update)?;
+                if let Some(object) = objects.get(0) {
+                    for blur_hash in &derived_object.blur_hash {
+                        let bg = blur_hash.bg.clone();
+                        let hash = create_blur_hash(
+                            object,
+                            blur_hash.x.unwrap_or(3),
+                            blur_hash.y.unwrap_or(3),
+                            blur_hash.bg.clone(),
+                            sem,
+                            pool,
+                        )
+                        .await?;
+                        blur_hashes.push(models::DeriveTransformedObjectsResponseBlurHash {
+                            x: blur_hash.x,
+                            y: blur_hash.y,
+                            bg,
+                            hash,
+                        });
+                    }
+                }
             }
             Err(e) => {
                 return Err(e);
@@ -326,11 +348,83 @@ async fn derive_objects(
             .objects
             .push(models::DeriveTransformedObjectsResponseObject {
                 path: derived_object.path.clone(),
+                blur_hash: blur_hashes,
             });
 
         println!("Output {:?}", derived_object);
     }
+
+    for blur_hash in &body.blur_hash {
+        let bg = blur_hash.bg.clone();
+        let hash = create_blur_hash(
+            &obj,
+            blur_hash.x.unwrap_or(3),
+            blur_hash.y.unwrap_or(3),
+            blur_hash.bg.clone(),
+            sem,
+            pool,
+        )
+        .await?;
+        response
+            .blur_hash
+            .push(models::DeriveTransformedObjectsResponseBlurHash {
+                x: blur_hash.x,
+                y: blur_hash.y,
+                bg,
+                hash,
+            });
+    }
+
     Ok(Json::from(response))
+}
+
+#[get("/blur-hash/<input_path..>?<bg>&<x>&<y>")]
+async fn blur_hash(
+    x: Option<i32>,
+    y: Option<i32>,
+    bg: Option<String>,
+    input_path: PathBuf,
+    pool: &State<Pool>,
+    sem: &State<ImageSemaphore>,
+) -> Result<String, String> {
+    let path = input_path
+        .to_str()
+        .ok_or_else(|| "Could not parse path for some reason".to_string())?;
+    let conn = pool.get().map_err(|e| format!("{}", e))?;
+    let virtual_object = match find_virtual_object_by_object_path(&conn, path)? {
+        Some(obj) => obj,
+        None => {
+            return Err(format!("Could not find {}", path));
+        }
+    };
+    let object_id = match virtual_object.primary_object_id {
+        None => {
+            return Err("Finding dominant object not implemented".to_string());
+        }
+        Some(id) => id,
+    };
+    let bg_str = bg.unwrap_or_else(|| "".to_string());
+    if let Some(hash) = find_blur_hash(&conn, object_id, x.unwrap_or(3), y.unwrap_or(3), &bg_str)? {
+        return Ok(hash);
+    };
+
+    let object = if let Some(object) = find_object_by_id(&conn, object_id)? {
+        object
+    } else {
+        return Err("Internal error, could not find object".to_string());
+    };
+
+    let hash = create_blur_hash(
+        &object,
+        x.unwrap_or(3),
+        y.unwrap_or(3),
+        Some(bg_str),
+        sem,
+        pool,
+    )
+    .await?;
+
+    Ok(hash)
 }
 
 #[launch]
@@ -351,6 +445,7 @@ fn rocket() -> _ {
                 upsert_virtual_object,
                 get_virtual_object,
                 derive_objects,
+                blur_hash,
             ],
         )
         .mount("/", ExistingFileHandler())

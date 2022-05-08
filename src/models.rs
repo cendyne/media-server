@@ -112,6 +112,8 @@ pub struct ReplaceVirtualObjectRelation {
     pub object_id: i32,
 }
 
+// JSON stuff
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VirtualObjectInfoResponseObject {
@@ -152,27 +154,50 @@ pub struct UpsertObjectResponse {
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
+pub struct DeriveTransformedObjectsRequestBlurHash {
+    pub x: Option<i32>,
+    pub y: Option<i32>,
+    pub bg: Option<String>,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct DeriveTransformedObjectsRequestObject {
     pub path: String,
     pub transforms: Option<TransformationList>,
     pub content_type: String,
     pub quality: Option<u8>,
+    #[serde(default)]
+    pub blur_hash: Vec<DeriveTransformedObjectsRequestBlurHash>,
 }
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct DeriveTransformedObjectsRequest {
     pub objects: Vec<DeriveTransformedObjectsRequestObject>,
+    #[serde(default)]
+    pub blur_hash: Vec<DeriveTransformedObjectsRequestBlurHash>,
+}
+
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct DeriveTransformedObjectsResponseBlurHash {
+    pub x: Option<i32>,
+    pub y: Option<i32>,
+    pub bg: Option<String>,
+    pub hash: String,
 }
 
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct DeriveTransformedObjectsResponseObject {
     pub path: String,
+    pub blur_hash: Vec<DeriveTransformedObjectsResponseBlurHash>,
 }
 
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct DeriveTransformedObjectsResponse {
     pub objects: Vec<DeriveTransformedObjectsResponseObject>,
+    pub blur_hash: Vec<DeriveTransformedObjectsResponseBlurHash>,
 }

@@ -85,6 +85,18 @@ pub struct LimitedImage<'a> {
     permit: SemaphorePermit<'a>,
 }
 
+impl LimitedImage<'_> {
+    pub fn width(&self) -> u32 {
+        self.image.width()
+    }
+    pub fn height(&self) -> u32 {
+        self.image.height()
+    }
+    pub fn rgba_vec(&self) -> Vec<u8> {
+        self.image.to_vec()
+    }
+}
+
 pub struct ImageSemaphore {
     semaphore: Semaphore,
 }
